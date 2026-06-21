@@ -25,6 +25,12 @@ def test_team_tie_returns_none():
     assert ts.team_winner({1: 10, 2: 10}) is None
 
 
+def test_team_winner_rejects_non_two_team_totals():
+    import pytest
+    with pytest.raises(ValueError):
+        ts.team_winner({1: 10, 2: 9, 3: 8})
+
+
 from app.enums import Category, ProLevel, RaceFormat, TeamType
 from app.services import tournament as T, seasons as ssvc, cars as csvc, teams as tsvc
 from sqlmodel import select

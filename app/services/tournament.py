@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import random
+from dataclasses import dataclass
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
-                        Heat, HeatResult)
+                        Heat, HeatResult, Car, TieBreak)
 from app.enums import Category, ProLevel, RaceFormat, RaceStatus
 from app.services import grouping, lineup, seasons as ssvc
 from app.services import mmr as mmr_svc, standings as st_svc
+from app.services import scoring, team_scoring
 
 
 def create_race(session: Session, *, category: Category, pro_level: ProLevel,
@@ -15,6 +18,11 @@ def create_race(session: Session, *, category: Category, pro_level: ProLevel,
     season = ssvc.get_active_season(session)
     if season is None:
         raise ValueError("没有进行中的赛季,请先开启赛季")
+    if pro_level == ProLevel.PRO:
+        for cid in car_ids:
+            car = session.get(Car, cid)
+            if car is not None and car.team_id is None:
+                raise ValueError("专业赛不能选择没有车队的赛车")
     grouping.group_sizes(len(car_ids))   # 提前校验数量,非法直接抛 GroupingError
     race = Race(season_id=season.id, category=category, pro_level=pro_level,
                 format=format, status=RaceStatus.IN_PROGRESS)
@@ -81,13 +89,10 @@ def undo_heat(session: Session, heat_id: int) -> None:
         session.add(r)
     heat.recorded = False
     session.add(heat)
+    group = session.get(Group, heat.group_id)
+    group.mmr_settled = False
+    session.add(group)
     session.commit()
-
-
-from dataclasses import dataclass
-from app.models import TieBreak, Race
-from app.enums import RaceStatus
-from app.services import scoring
 
 
 def _group_results(session: Session, group_id: int) -> dict[int, list]:
@@ -141,6 +146,12 @@ class AdvanceResult:
 def advance_round(session: Session, race_id: int,
                   seed: Optional[int] = None) -> AdvanceResult:
     race = session.get(Race, race_id)
+    if race.status == RaceStatus.FINISHED:
+        rnd = session.exec(select(RaceRound).where(RaceRound.race_id == race_id)
+                           .order_by(RaceRound.number.desc())).first()
+        groups = _round_groups(session, rnd.id)
+        totals = scoring.group_totals(_group_results(session, groups[0].id))
+        return AdvanceResult(kind="finished", ranking=scoring.final_ranking(totals))
     rnd = session.exec(select(RaceRound).where(RaceRound.race_id == race_id)
                        .order_by(RaceRound.number.desc())).first()
     groups = _round_groups(session, rnd.id)
@@ -193,12 +204,7 @@ def _team_final_ranking(session: Session, race: Race, final_group: Group) -> lis
     return [a, b]
 
 
-import random
-from app.enums import RaceFormat
-
-
 def _team_cars(session: Session, team_id: int, category: Category) -> list[int]:
-    from app.models import Car
     return [c.id for c in session.exec(select(Car).where(
         Car.team_id == team_id, Car.category == category)).all()]
 
@@ -243,11 +249,7 @@ def _build_team_round(session: Session, race: Race, *, number: int,
     return rnd
 
 
-from dataclasses import dataclass as _dc
-from app.services import team_scoring
-
-
-@_dc
+@dataclass
 class TeamGroupResult:
     winner_team_id: Optional[int]      # None 表示并列需加赛
 

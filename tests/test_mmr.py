@@ -44,11 +44,16 @@ from app.services import seasons as ssvc, cars as csvc, tournament as T
 
 def _solo_group_recorded(session):
     """建一个 4 车专业单人赛,按成员顺序录入名次,返回 (group, members)。"""
+    from app.models import Team
+    from app.enums import TeamType
     ssvc.start_season(session, name="2026 S1")
     ids = []
     for i in range(4):
+        team = Team(type=TeamType.INDEPENDENT, name=f"MMR测试车队{i}")
+        session.add(team); session.commit(); session.refresh(team)
         c = csvc.create_car(session, nickname=f"车{i}", category=Category.GT3,
-                            brand="法拉利", casting="", description="", team_id=None)
+                            brand="法拉利", casting="", description="",
+                            team_id=team.id)
         ids.append(c.id)
     T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
                   format=RaceFormat.SOLO, car_ids=ids, seed=1)

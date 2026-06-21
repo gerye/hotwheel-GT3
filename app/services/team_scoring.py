@@ -16,7 +16,7 @@ def team_totals(team_cars: dict[int, list[int]],
 
 def team_winner(totals: dict[int, int]) -> Optional[int]:
     if len(totals) != 2:
-        return max(totals, key=totals.get) if totals else None
+        raise ValueError("车队赛每组必须正好 2 个车队")
     (ta, sa), (tb, sb) = totals.items()
     if sa == sb:
         return None                  # 并列 → 需加赛

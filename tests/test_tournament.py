@@ -17,10 +17,16 @@ from app.models import RaceRound, Group, GroupMember, Heat, HeatResult
 
 
 def _make_cars(session, n, category=Category.GT3):
+    """每辆车配一个独立车队,满足专业赛「无车队不可参赛」的校验。"""
+    from app.models import Team
+    from app.enums import TeamType
     ids = []
     for i in range(n):
+        team = Team(type=TeamType.INDEPENDENT, name=f"测试车队{i}")
+        session.add(team); session.commit(); session.refresh(team)
         c = csvc.create_car(session, nickname=f"车{i}", category=category,
-                            brand="法拉利", casting="", description="", team_id=None)
+                            brand="法拉利", casting="", description="",
+                            team_id=team.id)
         ids.append(c.id)
     return ids
 
@@ -205,3 +211,73 @@ def test_final_round_produces_ranking_and_finishes(session):
     assert result.ranking == members         # 名次 = 总分序
     from app.models import Race
     assert session.get(Race, race.id).status.value == "已结束"
+
+
+def test_create_pro_race_rejects_teamless_car(session):
+    import pytest
+    ssvc.start_season(session, name="2026 S1")
+    cars = []
+    for i in range(4):
+        c = csvc.create_car(session, nickname=f"无队车{i}", category=Category.GT3,
+                            brand="法拉利", casting="", description="", team_id=None)
+        cars.append(c.id)
+    with pytest.raises(ValueError):
+        T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                      format=RaceFormat.SOLO, car_ids=cars, seed=1)
+
+
+def test_advance_round_on_finished_race_is_idempotent(session):
+    from app.models import TeamPointEntry, Team
+    from app.enums import TeamType
+    ssvc.start_season(session, name="2026 S1")
+    cars = []
+    for i in range(4):
+        team = Team(type=TeamType.INDEPENDENT, name=f"车队A{i}")
+        session.add(team); session.commit(); session.refresh(team)
+        c = csvc.create_car(session, nickname=f"队车{i}", category=Category.GT3,
+                            brand="法拉利", casting="", description="",
+                            team_id=team.id)
+        cars.append(c.id)
+    race = T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                         format=RaceFormat.SOLO, car_ids=cars, seed=1)
+    grp = session.exec(select(Group)).first()
+    members = [m.car_id for m in session.exec(select(GroupMember)
+               .where(GroupMember.group_id == grp.id)).all()]
+    for h in session.exec(select(Heat).where(Heat.group_id == grp.id)).all():
+        T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(members)})
+    result = T.advance_round(session, race.id, seed=2)
+    assert result.kind == "finished"
+    count_after_first = len(session.exec(select(TeamPointEntry)).all())
+    result2 = T.advance_round(session, race.id, seed=2)
+    assert result2.kind == "finished"
+    count_after_second = len(session.exec(select(TeamPointEntry)).all())
+    assert count_after_second == count_after_first
+
+
+def test_undo_heat_clears_group_mmr_settled(session):
+    from app.models import Team
+    from app.enums import TeamType
+    from app.services import mmr as mmr_svc
+    ssvc.start_season(session, name="2026 S1")
+    cars = []
+    for i in range(4):
+        team = Team(type=TeamType.INDEPENDENT, name=f"车队B{i}")
+        session.add(team); session.commit(); session.refresh(team)
+        c = csvc.create_car(session, nickname=f"队车B{i}", category=Category.GT3,
+                            brand="法拉利", casting="", description="",
+                            team_id=team.id)
+        cars.append(c.id)
+    race = T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                         format=RaceFormat.SOLO, car_ids=cars, seed=1)
+    grp = session.exec(select(Group)).first()
+    members = [m.car_id for m in session.exec(select(GroupMember)
+               .where(GroupMember.group_id == grp.id)).all()]
+    heats = session.exec(select(Heat).where(Heat.group_id == grp.id)).all()
+    for h in heats:
+        T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(members)})
+    mmr_svc.settle_group_mmr(session, grp.id)
+    session.refresh(grp)
+    assert grp.mmr_settled is True
+    T.undo_heat(session, heats[0].id)
+    session.refresh(grp)
+    assert grp.mmr_settled is False

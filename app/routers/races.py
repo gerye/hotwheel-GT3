@@ -137,5 +137,4 @@ def tie_page(race_id: int, group_id: int, request: Request,
 def resolve_tie(race_id: int, group_id: int, winner_car_id: int = Form(...),
                 session: Session = Depends(get_session)):
     T.resolve_tie(session, group_id, winner_car_id=winner_car_id)
-    return RedirectResponse(f"/races/{race_id}/advance" if False else
-                            f"/races/{race_id}", status_code=303)
+    return RedirectResponse(f"/races/{race_id}", status_code=303)

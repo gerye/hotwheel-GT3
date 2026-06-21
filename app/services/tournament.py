@@ -168,3 +168,79 @@ def advance_round(session: Session, race_id: int,
     # 4) 用晋级者建下一轮
     _build_round(session, race, number=rnd.number + 1, car_ids=advancers, seed=seed)
     return AdvanceResult(kind="next_round")
+
+
+import random
+from app.enums import RaceFormat
+
+
+def _team_cars(session: Session, team_id: int, category: Category) -> list[int]:
+    from app.models import Car
+    return [c.id for c in session.exec(select(Car).where(
+        Car.team_id == team_id, Car.category == category)).all()]
+
+
+def create_team_race(session: Session, *, category: Category, pro_level: ProLevel,
+                     team_ids: list[int], seed: Optional[int] = None) -> Race:
+    season = ssvc.get_active_season(session)
+    if season is None:
+        raise ValueError("没有进行中的赛季,请先开启赛季")
+    if len(team_ids) % 2 != 0:
+        raise ValueError("车队锦标赛需要偶数支车队(每组 2 队)")
+    race = Race(season_id=season.id, category=category, pro_level=pro_level,
+                format=RaceFormat.TEAM, status=RaceStatus.IN_PROGRESS)
+    session.add(race); session.commit(); session.refresh(race)
+    for tid in team_ids:
+        for cid in _team_cars(session, tid, category):
+            session.add(RaceEntry(race_id=race.id, car_id=cid, team_id=tid))
+    session.commit()
+    _build_team_round(session, race, number=1, team_ids=team_ids,
+                      category=category, seed=seed)
+    return race
+
+
+def _build_team_round(session: Session, race: Race, *, number: int,
+                      team_ids: list[int], category: Category,
+                      seed: Optional[int]) -> RaceRound:
+    is_final = len(team_ids) <= 2
+    rnd = RaceRound(race_id=race.id, number=number, is_final=is_final)
+    session.add(rnd); session.commit(); session.refresh(rnd)
+    pool = list(team_ids)
+    random.Random(seed).shuffle(pool)
+    pairs = [pool[i:i + 2] for i in range(0, len(pool), 2)]
+    for idx, (ta, tb) in enumerate(pairs):
+        group = Group(round_id=rnd.id, label=chr(ord("A") + idx),
+                      team_a_id=ta, team_b_id=tb)
+        session.add(group); session.commit(); session.refresh(group)
+        members = _team_cars(session, ta, category) + _team_cars(session, tb, category)
+        for cid in members:
+            session.add(GroupMember(group_id=group.id, car_id=cid))
+        session.commit()
+        _build_heats(session, group, members)
+    return rnd
+
+
+from dataclasses import dataclass as _dc
+from app.services import team_scoring
+
+
+@_dc
+class TeamGroupResult:
+    winner_team_id: Optional[int]      # None 表示并列需加赛
+
+
+def settle_team_group(session: Session, group_id: int) -> TeamGroupResult:
+    group = session.get(Group, group_id)
+    results = _group_results(session, group_id)
+    car_points = scoring.group_totals(results)
+    # 用本组成员归属拆出两队的车
+    team_cars: dict[int, list[int]] = {group.team_a_id: [], group.team_b_id: []}
+    for cid in car_points:
+        entry = session.exec(select(RaceEntry).where(
+            RaceEntry.car_id == cid, RaceEntry.team_id.in_(
+                [group.team_a_id, group.team_b_id]))).first()
+        if entry:
+            team_cars[entry.team_id].append(cid)
+    totals = team_scoring.team_totals(team_cars, car_points)
+    winner = team_scoring.team_winner(totals)
+    return TeamGroupResult(winner_team_id=winner)

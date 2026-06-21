@@ -94,5 +94,15 @@ def car_detail(car_id: int, request: Request,
                session: Session = Depends(get_session)):
     from app.models import Car
     car = session.get(Car, car_id)
+    team_name = None
+    if car.team_id:
+        t = session.get(Team, car.team_id)
+        team_name = t.name if t else None
+    # 同类别按赛季 MMR 排名
+    same = session.exec(select(Car).where(Car.category == car.category)
+                        .order_by(Car.season_mmr.desc())).all()
+    rank = next((i + 1 for i, c in enumerate(same) if c.id == car.id), None)
+    honors: list[str] = []   # 计划二/三填充真实战绩
     return templates.TemplateResponse("car_detail.html", {
-        "request": request, "car": car})
+        "request": request, "car": car, "team_name": team_name,
+        "rank": rank, "honors": honors})

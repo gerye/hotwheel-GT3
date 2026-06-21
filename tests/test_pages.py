@@ -12,6 +12,7 @@ def test_home_redirects_to_database(engine):
     assert "/database" in r.headers["location"]
 
 
+from sqlmodel import select
 from app.enums import Category, TeamType
 from app.services import cars as csvc, teams as tsvc
 
@@ -37,3 +38,20 @@ def test_database_teams_tab(engine, session):
     tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     r = client.get("/database/teams")
     assert "法拉利车队" in r.text
+
+
+def test_car_detail_shows_fields(engine, session):
+    csvc.create_car(session, nickname="红色闪电", category=Category.GT3,
+                    brand="法拉利", casting="C01", description="弯道稳定", team_id=None)
+    from app.models import Car
+    cid = session.exec(select(Car)).one().id
+    r = client.get(f"/cars/{cid}")
+    assert "红色闪电" in r.text and "弯道稳定" in r.text and "1500" in r.text
+
+
+def test_team_detail_shows_capacity(engine, session):
+    t = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    csvc.create_car(session, nickname="红色闪电", category=Category.GT3,
+                    brand="法拉利", casting="", description="", team_id=t.id)
+    r = client.get(f"/teams/{t.id}")
+    assert "法拉利车队" in r.text and "红色闪电" in r.text

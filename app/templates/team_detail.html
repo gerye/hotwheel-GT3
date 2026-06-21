@@ -1,5 +1,24 @@
 <!-- app/templates/team_detail.html -->
 {% extends "base.html" %}
 {% block content %}
-<div class="card"><h2>{{ team.name }}</h2></div>
+<div class="card">
+  <div style="display:flex;justify-content:space-between">
+    <h2 style="margin:0">{{ team.name }}</h2>
+    <a class="btn" href="/teams/{{ team.id }}/edit">编辑</a>
+  </div>
+  <p><small>{{ team.type.value }}{% if team.brand %} · 品牌:{{ team.brand }}{% endif %}</small></p>
+  <div class="grid">
+    <div class="stat"><div class="label">本赛季积分</div><div class="value">{{ season_points }}</div></div>
+    <div class="stat"><div class="label">成员车</div><div class="value">{{ members|length }}</div></div>
+  </div>
+  <h3>成员赛车(按类别)</h3>
+  {% for c in members %}
+  <div class="row"><span style="flex:1">{{ c.nickname }}</span><span class="tag">{{ c.category.value }}</span></div>
+  {% else %}<p>暂无成员</p>{% endfor %}
+  {% for cat, used in capacity.items() %}
+  <p><small>{{ cat }} {{ used }}/2</small></p>
+  {% endfor %}
+  <h3>本赛季积分来源</h3>
+  {% for line in point_sources %}<p>{{ line }}</p>{% else %}<p>暂无</p>{% endfor %}
+</div>
 {% endblock %}

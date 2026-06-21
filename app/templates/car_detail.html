@@ -1,5 +1,23 @@
 <!-- app/templates/car_detail.html -->
 {% extends "base.html" %}
 {% block content %}
-<div class="card"><h2>{{ car.nickname }}</h2></div>
+<div class="card">
+  <div style="display:flex;gap:16px">
+    {% if car.image_path %}<img src="/static/uploads/{{ car.image_path }}" style="width:120px;height:90px;object-fit:cover;border-radius:8px">
+    {% else %}<span class="thumb" style="width:120px;height:90px"></span>{% endif %}
+    <div style="flex:1">
+      <h2 style="margin:0">{{ car.nickname }} <span class="tag">{{ car.category.value }}</span></h2>
+      <p><small>{{ car.casting }} · {{ car.brand }} · 车队:{{ team_name or "无车队" }}</small></p>
+      <a class="btn" href="/cars/{{ car.id }}/edit">编辑</a>
+    </div>
+  </div>
+  <p>{{ car.description }}</p>
+  <div class="grid">
+    <div class="stat"><div class="label">赛季 MMR</div><div class="value">{{ car.season_mmr | round | int }}</div></div>
+    <div class="stat"><div class="label">{{ car.category.value }} 排名</div><div class="value">#{{ rank or "-" }}</div></div>
+    <div class="stat"><div class="label">历史 MMR</div><div class="value">{{ car.historical_mmr | round | int }}</div></div>
+  </div>
+  <h3>历史战绩 / 荣誉</h3>
+  {% for line in honors %}<p>{{ line }}</p>{% else %}<p>暂无记录</p>{% endfor %}
+</div>
 {% endblock %}

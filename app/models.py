@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
 from app.enums import Category, TeamType, SeasonStatus
+from app.enums import ProLevel, RaceFormat, RaceStatus
 
 
 class Team(SQLModel, table=True):
@@ -40,3 +41,66 @@ class CarSeasonMMR(SQLModel, table=True):
     season_id: int = Field(foreign_key="season.id")
     car_id: int = Field(foreign_key="car.id")
     mmr: float
+
+
+class Race(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season_id: int = Field(foreign_key="season.id")
+    category: Category
+    pro_level: ProLevel
+    format: RaceFormat
+    status: RaceStatus = RaceStatus.IN_PROGRESS
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RaceEntry(SQLModel, table=True):
+    """报名:单人赛只填 car_id;车队赛 car_id + team_id 都填。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    race_id: int = Field(foreign_key="race.id")
+    car_id: int = Field(foreign_key="car.id")
+    team_id: Optional[int] = Field(default=None, foreign_key="team.id")
+
+
+class RaceRound(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    race_id: int = Field(foreign_key="race.id")
+    number: int
+    is_final: bool = False
+
+
+class Group(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    round_id: int = Field(foreign_key="raceround.id")
+    label: str                      # A/B/C...
+    team_a_id: Optional[int] = Field(default=None, foreign_key="team.id")  # 车队赛
+    team_b_id: Optional[int] = Field(default=None, foreign_key="team.id")
+
+
+class GroupMember(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    group_id: int = Field(foreign_key="group.id")
+    car_id: int = Field(foreign_key="car.id")
+
+
+class Heat(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    group_id: int = Field(foreign_key="group.id")
+    number: int                     # 1..4
+    recorded: bool = False
+
+
+class HeatResult(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    heat_id: int = Field(foreign_key="heat.id")
+    car_id: int = Field(foreign_key="car.id")
+    lane: int                       # 1..4
+    rank: Optional[int] = None      # 1..4;录入后填
+    dnf: bool = False
+
+
+class TieBreak(SQLModel, table=True):
+    """并列加赛/1V1 的人工裁决结果。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    group_id: int = Field(foreign_key="group.id")
+    winner_car_id: Optional[int] = Field(default=None, foreign_key="car.id")
+    winner_team_id: Optional[int] = Field(default=None, foreign_key="team.id")

@@ -2,6 +2,25 @@
 {% block content %}
 <h2>{{ race.category.value }} · {{ race.format.value }} · {{ race.pro_level.value }}
   <span class="tag">{{ race.status.value }}</span></h2>
+{% if final_ranking %}
+<div class="card">
+  <h3>最终名次</h3>
+  <ol>
+    {% for cid in final_ranking %}
+    <li>{{ names[cid] }}{% if loop.index == 1 %} — 冠军{% endif %}</li>
+    {% endfor %}
+  </ol>
+</div>
+{% elif request.query_params.get("ranking") %}
+<div class="card">
+  <h3>最终名次</h3>
+  <ol>
+    {% for cid in request.query_params.get("ranking").split(",") %}
+    <li>{{ names[cid|int] }}{% if loop.index == 1 %} — 冠军{% endif %}</li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
 <p>第 {{ round.number }} 轮{% if round.is_final %} · 决赛{% endif %}</p>
 {% for g in groups %}{% include "_group_card.html" %}{% endfor %}
 {% if race.status.value == "进行中" %}

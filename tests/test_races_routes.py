@@ -3,7 +3,7 @@ from app.main import app
 from app.services import seasons as ssvc, cars as csvc
 from app.enums import Category
 from sqlmodel import select
-from app.models import Race, Group, Heat, HeatResult, GroupMember
+from app.models import Race, Group, Heat, HeatResult, GroupMember, RaceRound
 
 client = TestClient(app)
 
@@ -60,3 +60,42 @@ def test_record_and_undo_via_route(engine, session):
     session.refresh(h1); assert h1.recorded is True
     client.post(f"/races/{race.id}/heats/{h1.id}/undo")
     session.refresh(h1); assert h1.recorded is False
+
+
+def _record_all(session, race_id):
+    rnd = session.exec(select(RaceRound).where(RaceRound.race_id == race_id)
+                       .order_by(RaceRound.number.desc())).first()
+    for g in session.exec(select(Group).where(Group.round_id == rnd.id)).all():
+        members = [m.car_id for m in session.exec(select(GroupMember)
+                   .where(GroupMember.group_id == g.id)).all()]
+        for h in session.exec(select(Heat).where(Heat.group_id == g.id)).all():
+            from app.services import tournament as T
+            T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(members)})
+
+
+def test_advance_creates_next_round(engine, session):
+    from app.models import RaceRound
+    ssvc.start_season(session, name="2026 S1")
+    ids = _cars(session, 6)
+    client.post("/races", data={"category": "GT3", "pro_level": "表演",
+        "format": "单人锦标赛", "car_ids": [str(i) for i in ids]})
+    race = session.exec(select(Race)).one()
+    _record_all(session, race.id)
+    r = client.post(f"/races/{race.id}/advance", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    rounds = session.exec(select(RaceRound).where(RaceRound.race_id == race.id)).all()
+    assert len(rounds) == 2
+
+
+def test_advance_final_finishes_and_shows_ranking(engine, session):
+    ssvc.start_season(session, name="2026 S1")
+    ids = _cars(session, 4)
+    client.post("/races", data={"category": "GT3", "pro_level": "表演",
+        "format": "单人锦标赛", "car_ids": [str(i) for i in ids]})
+    race = session.exec(select(Race)).one()
+    _record_all(session, race.id)
+    client.post(f"/races/{race.id}/advance")
+    session.refresh(race)
+    assert race.status.value == "已结束"
+    page = client.get(f"/races/{race.id}")
+    assert "冠军" in page.text or "最终名次" in page.text

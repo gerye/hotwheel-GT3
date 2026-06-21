@@ -7,7 +7,8 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Car, Race, RaceRound, Group, GroupMember, Heat, HeatResult
 from app.enums import Category, ProLevel, RaceFormat
-from app.services import tournament as T, seasons as ssvc
+from app.enums import RaceStatus
+from app.services import tournament as T, seasons as ssvc, scoring
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -78,9 +79,13 @@ def race_detail(race_id: int, request: Request,
                 HeatResult.heat_id == h.id).order_by(HeatResult.lane)).all()
             heat_views.append({"heat": h, "rows": rows, "names": names})
         view.append({"group": g, "members": members, "heats": heat_views})
+    final_ranking = None
+    if race.status == RaceStatus.FINISHED and groups:
+        totals = scoring.group_totals(T._group_results(session, groups[0].id))
+        final_ranking = scoring.final_ranking(totals)
     return templates.TemplateResponse("race_detail.html", {
         "request": request, "race": race, "round": rnd, "groups": view,
-        "names": names})
+        "names": names, "final_ranking": final_ranking})
 
 
 @router.post("/races/{race_id}/heats/{heat_id}")
@@ -102,3 +107,35 @@ def undo_heat(race_id: int, heat_id: int,
               session: Session = Depends(get_session)):
     T.undo_heat(session, heat_id)
     return RedirectResponse(f"/races/{race_id}", status_code=303)
+
+
+@router.post("/races/{race_id}/advance")
+def advance(race_id: int, request: Request,
+            session: Session = Depends(get_session)):
+    result = T.advance_round(session, race_id)
+    if result.kind == "finished":
+        # 把最终名次暂存到查询参数,详情页读取
+        ids = ",".join(str(i) for i in result.ranking)
+        return RedirectResponse(f"/races/{race_id}?ranking={ids}", status_code=303)
+    if result.kind == "needs_decision":
+        gid = result.pending_group_ids[0]
+        return RedirectResponse(f"/races/{race_id}/tie/{gid}", status_code=303)
+    return RedirectResponse(f"/races/{race_id}", status_code=303)
+
+
+@router.get("/races/{race_id}/tie/{group_id}", response_class=HTMLResponse)
+def tie_page(race_id: int, group_id: int, request: Request,
+             session: Session = Depends(get_session)):
+    adv = T.settle_group(session, group_id)
+    names = {c.id: c.nickname for c in session.exec(select(Car)).all()}
+    return templates.TemplateResponse("race_tie.html", {
+        "request": request, "race_id": race_id, "group_id": group_id,
+        "tied": adv.tie_between, "names": names})
+
+
+@router.post("/races/{race_id}/tie/{group_id}")
+def resolve_tie(race_id: int, group_id: int, winner_car_id: int = Form(...),
+                session: Session = Depends(get_session)):
+    T.resolve_tie(session, group_id, winner_car_id=winner_car_id)
+    return RedirectResponse(f"/races/{race_id}/advance" if False else
+                            f"/races/{race_id}", status_code=303)

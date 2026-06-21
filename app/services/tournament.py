@@ -6,6 +6,7 @@ from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
                         Heat, HeatResult)
 from app.enums import Category, ProLevel, RaceFormat, RaceStatus
 from app.services import grouping, lineup, seasons as ssvc
+from app.services import mmr as mmr_svc, standings as st_svc
 
 
 def create_race(session: Session, *, category: Category, pro_level: ProLevel,
@@ -149,12 +150,25 @@ def advance_round(session: Session, race_id: int,
     if not_done:
         return AdvanceResult(kind="needs_results", pending_group_ids=not_done)
 
+    # 专业赛:本轮每组结算一次 MMR(幂等)
+    if race.pro_level == ProLevel.PRO:
+        for g in groups:
+            mmr_svc.settle_group_mmr(session, g.id)
+
     # 2) 决赛轮:输出最终名次并结束
     if rnd.is_final:
         totals = scoring.group_totals(_group_results(session, groups[0].id))
         ranking = scoring.final_ranking(totals)
         race.status = RaceStatus.FINISHED
         session.add(race); session.commit()
+        if race.pro_level == ProLevel.PRO:
+            if race.format == RaceFormat.SOLO:
+                st_svc.award_solo(session, season_id=race.season_id,
+                                  race_id=race.id, ranking=ranking)
+            else:
+                team_ranking = _team_final_ranking(session, race, groups[0])
+                st_svc.award_team(session, season_id=race.season_id,
+                                  race_id=race.id, ranking=team_ranking)
         return AdvanceResult(kind="finished", ranking=ranking)
 
     # 3) 非决赛轮:逐组结算,遇未裁决并列则要求决断
@@ -168,6 +182,15 @@ def advance_round(session: Session, race_id: int,
     # 4) 用晋级者建下一轮
     _build_round(session, race, number=rnd.number + 1, car_ids=advancers, seed=seed)
     return AdvanceResult(kind="next_round")
+
+
+def _team_final_ranking(session: Session, race: Race, final_group: Group) -> list[int]:
+    """车队赛决赛组(2 队)→ [胜队, 负队]。第 3 名留待细化(见 spec §8)。"""
+    res = settle_team_group(session, final_group.id)
+    a, b = final_group.team_a_id, final_group.team_b_id
+    if res.winner_team_id == b:
+        return [b, a]
+    return [a, b]
 
 
 import random

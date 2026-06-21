@@ -1,0 +1,32 @@
+<!-- app/templates/standings.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>赛车 MMR 榜</h2>
+  <form method="get" action="/standings" style="display:flex;gap:8px">
+    <select name="category" onchange="this.form.submit()">
+      {% for c in ["F1","GT3","公路车"] %}
+      <option value="{{ c }}" {{ "selected" if category==c else "" }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <select name="season_mode" onchange="this.form.submit()">
+      <option value="season" {{ "selected" if not use_hist else "" }}>赛季榜</option>
+      <option value="history" {{ "selected" if use_hist else "" }}>历史榜</option>
+    </select>
+  </form>
+  <ol>
+    {% for c in cars %}
+    <li><a href="/cars/{{ c.id }}">{{ c.nickname }}</a> —
+      {{ (c.historical_mmr if use_hist else c.season_mmr) | round | int }}</li>
+    {% else %}<li>暂无赛车</li>{% endfor %}
+  </ol>
+</div>
+<div class="card">
+  <h2>车队积分总榜(本赛季)</h2>
+  <ol>
+    {% for team, pts in board %}
+    <li><a href="/teams/{{ team.id }}">{{ team.name }}</a> — {{ pts }} 分</li>
+    {% else %}<li>暂无</li>{% endfor %}
+  </ol>
+</div>
+{% endblock %}

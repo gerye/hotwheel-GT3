@@ -58,3 +58,30 @@ def test_standings_board_sorted(session):
     st.award_team(session, season_id=s.id, race_id=1, ranking=[t2.id, t1.id])
     board = st.team_board(session, s.id)
     assert board[0][0].id == t2.id and board[0][1] == 10
+
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_standings_page_shows_mmr_and_team_board(engine, session):
+    s = ssvc.start_season(session, name="2026 S1")
+    t = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    c = csvc.create_car(session, nickname="法1", category=Category.GT3,
+                        brand="法拉利", casting="", description="", team_id=t.id)
+    st.award_team(session, season_id=s.id, race_id=1, ranking=[t.id])
+    r = client.get("/standings")
+    assert r.status_code == 200
+    assert "法1" in r.text and "法拉利车队" in r.text
+
+
+def test_standings_mmr_filtered_by_category(engine, session):
+    ssvc.start_season(session, name="2026 S1")
+    csvc.create_car(session, nickname="GT3车", category=Category.GT3,
+                    brand="法拉利", casting="", description="", team_id=None)
+    csvc.create_car(session, nickname="F1车", category=Category.F1,
+                    brand="法拉利", casting="", description="", team_id=None)
+    r = client.get("/standings?category=GT3")
+    assert "GT3车" in r.text and "F1车" not in r.text

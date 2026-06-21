@@ -24,3 +24,10 @@ def engine():
 def session(engine):
     with Session(engine) as s:
         yield s
+
+
+@pytest.fixture()
+def deterministic():
+    import random
+    random.seed(0)
+    yield

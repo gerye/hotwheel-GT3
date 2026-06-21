@@ -81,3 +81,90 @@ def undo_heat(session: Session, heat_id: int) -> None:
     heat.recorded = False
     session.add(heat)
     session.commit()
+
+
+from dataclasses import dataclass
+from app.models import TieBreak, Race
+from app.enums import RaceStatus
+from app.services import scoring
+
+
+def _group_results(session: Session, group_id: int) -> dict[int, list]:
+    results: dict[int, list] = {}
+    heats = session.exec(select(Heat).where(Heat.group_id == group_id)).all()
+    for h in heats:
+        for r in session.exec(select(HeatResult)
+                              .where(HeatResult.heat_id == h.id)).all():
+            results.setdefault(r.car_id, []).append(r.rank)
+    return results
+
+
+def group_recorded(session: Session, group_id: int) -> bool:
+    heats = session.exec(select(Heat).where(Heat.group_id == group_id)).all()
+    return all(h.recorded for h in heats)
+
+
+def settle_group(session: Session, group_id: int) -> scoring.Advancement:
+    """返回晋级判定;若存在已裁决的 1V1,则把胜者并入晋级。"""
+    totals = scoring.group_totals(_group_results(session, group_id))
+    adv = scoring.resolve_advancement(totals)
+    if adv.tie_between is not None:
+        tb = session.exec(select(TieBreak)
+                          .where(TieBreak.group_id == group_id)).first()
+        if tb is not None and tb.winner_car_id is not None:
+            adv = scoring.Advancement(
+                advancers=adv.guaranteed + [tb.winner_car_id],
+                guaranteed=adv.guaranteed, tie_between=None)
+    return adv
+
+
+def resolve_tie(session: Session, group_id: int, *, winner_car_id: int) -> None:
+    tb = session.exec(select(TieBreak).where(TieBreak.group_id == group_id)).first()
+    if tb is None:
+        tb = TieBreak(group_id=group_id)
+    tb.winner_car_id = winner_car_id
+    session.add(tb); session.commit()
+
+
+def _round_groups(session: Session, round_id: int) -> list[Group]:
+    return session.exec(select(Group).where(Group.round_id == round_id)).all()
+
+
+@dataclass
+class AdvanceResult:
+    kind: str                       # "needs_decision" | "needs_results" | "next_round" | "finished"
+    ranking: list[int] | None = None
+    pending_group_ids: list[int] | None = None
+
+
+def advance_round(session: Session, race_id: int,
+                  seed: Optional[int] = None) -> AdvanceResult:
+    race = session.get(Race, race_id)
+    rnd = session.exec(select(RaceRound).where(RaceRound.race_id == race_id)
+                       .order_by(RaceRound.number.desc())).first()
+    groups = _round_groups(session, rnd.id)
+
+    # 1) 所有小组必须录完
+    not_done = [g.id for g in groups if not group_recorded(session, g.id)]
+    if not_done:
+        return AdvanceResult(kind="needs_results", pending_group_ids=not_done)
+
+    # 2) 决赛轮:输出最终名次并结束
+    if rnd.is_final:
+        totals = scoring.group_totals(_group_results(session, groups[0].id))
+        ranking = scoring.final_ranking(totals)
+        race.status = RaceStatus.FINISHED
+        session.add(race); session.commit()
+        return AdvanceResult(kind="finished", ranking=ranking)
+
+    # 3) 非决赛轮:逐组结算,遇未裁决并列则要求决断
+    advancers: list[int] = []
+    for g in groups:
+        adv = settle_group(session, g.id)
+        if adv.advancers is None:
+            return AdvanceResult(kind="needs_decision", pending_group_ids=[g.id])
+        advancers.extend(adv.advancers)
+
+    # 4) 用晋级者建下一轮
+    _build_round(session, race, number=rnd.number + 1, car_ids=advancers, seed=seed)
+    return AdvanceResult(kind="next_round")

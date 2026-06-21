@@ -1,0 +1,22 @@
+<!-- app/templates/seasons.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>赛季</h2>
+  {% if not active %}
+  <form method="post" action="/seasons" style="display:flex;gap:8px">
+    <input name="name" placeholder="新赛季名称,如 2026 S1" required>
+    <button class="btn">开启新赛季</button>
+  </form>
+  {% else %}
+  <p>当前赛季:<strong>{{ active.name }}</strong>(进行中)
+    <form method="post" action="/seasons/{{ active.id }}/end" style="display:inline">
+      <button class="btn">结束当前赛季</button>
+    </form>
+  </p>
+  {% endif %}
+  {% for s in seasons %}
+  <a class="row" href="/seasons/{{ s.id }}"><span style="flex:1">{{ s.name }}</span><span class="tag">{{ s.status.value }}</span></a>
+  {% else %}<p>暂无赛季</p>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,34 @@
+<!-- app/templates/car_form.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>{{ "编辑赛车" if car else "新增赛车" }}</h2>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ action }}" enctype="multipart/form-data">
+    <label>昵称(唯一)</label>
+    <input name="nickname" value="{{ car.nickname if car else "" }}" required>
+    <label>类别</label>
+    <select name="category">
+      {% for c in ["F1","GT3","公路车"] %}
+      <option value="{{ c }}" {{ "selected" if car and car.category.value==c else "" }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <label>品牌</label>
+    <input name="brand" value="{{ car.brand if car else "" }}">
+    <label>铸模</label>
+    <input name="casting" value="{{ car.casting if car else "" }}">
+    <label>所属车队</label>
+    <select name="team_id">
+      <option value="">无车队</option>
+      {% for t in teams %}
+      <option value="{{ t.id }}" {{ "selected" if car and car.team_id==t.id else "" }}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <label>叙述</label>
+    <textarea name="description" rows="3">{{ car.description if car else "" }}</textarea>
+    <label>图片</label>
+    <input type="file" name="image" accept="image/*">
+    <div style="margin-top:12px"><button class="btn" type="submit">保存</button></div>
+  </form>
+</div>
+{% endblock %}

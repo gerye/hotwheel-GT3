@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>赛事</h2>
+  {% if not active %}<p class="error">没有进行中的赛季,请先到「赛季」开启。</p>{% endif %}
+  <form method="get" action="/races/new">
+    <label>赛事等级</label>
+    <select name="category"><option>F1</option><option selected>GT3</option><option>公路车</option></select>
+    <label>专业水平</label>
+    <select name="pro_level"><option>专业</option><option>表演</option></select>
+    <label>赛制</label>
+    <select name="format"><option>单人锦标赛</option><option>车队锦标赛</option></select>
+    <div style="margin-top:12px"><button class="btn">开始新比赛</button></div>
+  </form>
+</div>
+<div class="card">
+  <h3>历史比赛</h3>
+  {% for r in races %}
+  <a class="row" href="/races/{{ r.id }}"><span style="flex:1">{{ r.category.value }} · {{ r.format.value }} · {{ r.pro_level.value }}</span><span class="tag">{{ r.status.value }}</span></a>
+  {% else %}<p>暂无比赛</p>{% endfor %}
+</div>
+{% endblock %}

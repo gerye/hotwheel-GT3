@@ -1,0 +1,15 @@
+<!-- app/templates/season_detail.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>{{ season.name }} <span class="tag">{{ season.status.value }}</span></h2>
+  <h3>本赛季比赛</h3>
+  {% for r in races %}
+  <a class="row" href="/races/{{ r.id }}"><span style="flex:1">{{ r.category.value }} · {{ r.format.value }}</span><span class="tag">{{ r.status.value }}</span></a>
+  {% else %}<p>暂无比赛</p>{% endfor %}
+  <h3>车队积分榜</h3>
+  <ol>
+    {% for team, pts in board %}<li>{{ team.name }} — {{ pts }} 分</li>{% else %}<li>暂无</li>{% endfor %}
+  </ol>
+</div>
+{% endblock %}

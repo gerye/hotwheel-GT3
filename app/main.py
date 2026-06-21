@@ -14,8 +14,12 @@ def _startup() -> None:
     db.init_db()
 
 
+config.ensure_dirs()
+
 app.mount("/static", StaticFiles(directory=config.BASE_DIR / "app" / "static"),
           name="static")
+app.mount("/static/uploads", StaticFiles(directory=config.IMAGES_DIR),
+          name="uploads")
 
 
 @app.get("/")

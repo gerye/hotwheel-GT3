@@ -8,6 +8,11 @@
 完整需求与设计见 [docs/superpowers/specs/2026-06-22-hotwheel-gt3-design.md](docs/superpowers/specs/2026-06-22-hotwheel-gt3-design.md)。
 **任何实现都以该文档为准;改需求先改文档。**
 
+## 环境约束(重要)
+- 本机仅有系统 Python 3.9.6,无 brew/pyenv/conda。因此目标运行环境为 **Python 3.9**。
+- 计划里的代码用了 3.10+ 的 `X | None` 联合类型写法。为在 3.9 运行,**每个 `.py` 模块第一行必须是 `from __future__ import annotations`**(让注解延迟为字符串,避免运行时报错)。SQLModel 表模型一律用 `Optional[...]`。
+- `pyproject.toml` 的 `requires-python` 设为 `>=3.9`。
+
 ## 技术栈
 - 存储:SQLite(`data/hotwheel.db`)+ 图片文件夹(`data/images/`)
 - 后端:Python FastAPI + SQLModel + Uvicorn

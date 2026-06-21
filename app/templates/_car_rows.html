@@ -1,0 +1,13 @@
+{% for car in cars %}
+<a class="row" href="/cars/{{ car.id }}">
+  {% if car.image_path %}<img src="/static/uploads/{{ car.image_path }}">{% else %}<span class="thumb"></span>{% endif %}
+  <span style="flex:1">
+    <strong>{{ car.nickname }}</strong><br>
+    <small>{{ car.casting }} · {{ car.brand }} · {{ team_names.get(car.team_id, "无车队") }}</small>
+  </span>
+  <span class="tag">{{ car.category.value }}</span>
+  <span><small>MMR {{ car.season_mmr | round | int }}</small></span>
+</a>
+{% else %}
+<p>暂无赛车</p>
+{% endfor %}

@@ -1,0 +1,11 @@
+{% for team in teams %}
+<a class="row" href="/teams/{{ team.id }}">
+  <span style="flex:1">
+    <strong>{{ team.name }}</strong><br>
+    <small>{{ team.type.value }}{% if team.brand %} · {{ team.brand }}{% endif %} · {{ counts.get(team.id, 0) }} 辆车</small>
+  </span>
+  <span class="tag">{{ "厂商" if team.type.value == "厂商车队" else "独立" }}</span>
+</a>
+{% else %}
+<p>暂无车队</p>
+{% endfor %}

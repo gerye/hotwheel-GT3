@@ -10,3 +10,30 @@ def test_home_redirects_to_database(engine):
     r = client.get("/", follow_redirects=False)
     assert r.status_code in (302, 307)
     assert "/database" in r.headers["location"]
+
+
+from app.enums import Category, TeamType
+from app.services import cars as csvc, teams as tsvc
+
+
+def test_database_lists_cars(engine, session):
+    csvc.create_car(session, nickname="红色闪电", category=Category.GT3,
+                    brand="法拉利", casting="C01", description="", team_id=None)
+    r = client.get("/database")
+    assert r.status_code == 200
+    assert "红色闪电" in r.text
+
+
+def test_database_search_filters(engine, session):
+    csvc.create_car(session, nickname="红色闪电", category=Category.GT3,
+                    brand="法拉利", casting="C01", description="", team_id=None)
+    csvc.create_car(session, nickname="蓝鲨", category=Category.GT3,
+                    brand="保时捷", casting="A99", description="", team_id=None)
+    r = client.get("/database/cars?q=保时捷")
+    assert "蓝鲨" in r.text and "红色闪电" not in r.text
+
+
+def test_database_teams_tab(engine, session):
+    tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    r = client.get("/database/teams")
+    assert "法拉利车队" in r.text

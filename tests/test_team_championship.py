@@ -76,3 +76,16 @@ def test_team_group_settle_picks_winner_team(session):
         T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(ordered)})
     winner = T.settle_team_group(session, grp.id)
     assert winner.winner_team_id == t1.id
+
+
+def test_replay_adds_four_heats(session):
+    ssvc.start_season(session, name="2026 S1")
+    t1, c1 = _team_with_cars(session, "法拉利", 2)
+    t2, c2 = _team_with_cars(session, "保时捷", 2)
+    race = T.create_team_race(session, category=Category.GT3,
+                              pro_level=ProLevel.PRO, team_ids=[t1.id, t2.id], seed=1)
+    grp = session.exec(select(Group)).first()
+    before = len(session.exec(select(Heat).where(Heat.group_id == grp.id)).all())
+    T.extend_team_group_with_replay(session, grp.id)
+    after = len(session.exec(select(Heat).where(Heat.group_id == grp.id)).all())
+    assert after == before + 4

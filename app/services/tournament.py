@@ -244,3 +244,19 @@ def settle_team_group(session: Session, group_id: int) -> TeamGroupResult:
     totals = team_scoring.team_totals(team_cars, car_points)
     winner = team_scoring.team_winner(totals)
     return TeamGroupResult(winner_team_id=winner)
+
+
+def extend_team_group_with_replay(session: Session, group_id: int) -> None:
+    members = [m.car_id for m in session.exec(select(GroupMember)
+               .where(GroupMember.group_id == group_id)).all()]
+    existing = session.exec(select(Heat).where(Heat.group_id == group_id)).all()
+    start = max((h.number for h in existing), default=0)
+    schedule = lineup.build_lineup(members)
+    for i, lane_to_car in enumerate(schedule, start=start + 1):
+        heat = Heat(group_id=group_id, number=i, recorded=False)
+        session.add(heat); session.commit(); session.refresh(heat)
+        for lane_idx, car in enumerate(lane_to_car, start=1):
+            if car is not None:
+                session.add(HeatResult(heat_id=heat.id, car_id=car,
+                                       lane=lane_idx, rank=None))
+        session.commit()

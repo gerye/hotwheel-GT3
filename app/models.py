@@ -74,6 +74,7 @@ class Group(SQLModel, table=True):
     label: str                      # A/B/C...
     team_a_id: Optional[int] = Field(default=None, foreign_key="team.id")  # 车队赛
     team_b_id: Optional[int] = Field(default=None, foreign_key="team.id")
+    mmr_settled: bool = False
 
 
 class GroupMember(SQLModel, table=True):
@@ -104,3 +105,14 @@ class TieBreak(SQLModel, table=True):
     group_id: int = Field(foreign_key="group.id")
     winner_car_id: Optional[int] = Field(default=None, foreign_key="car.id")
     winner_team_id: Optional[int] = Field(default=None, foreign_key="team.id")
+
+
+class TeamPointEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season_id: int = Field(foreign_key="season.id")
+    team_id: int = Field(foreign_key="team.id")
+    points: int
+    source_car_id: Optional[int] = Field(default=None, foreign_key="car.id")
+    race_id: Optional[int] = Field(default=None, foreign_key="race.id")
+    description: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)

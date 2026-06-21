@@ -9,6 +9,10 @@ NUM_LANES = 4          # 跑道数
 INITIAL_MMR = 1500.0   # 初始 MMR
 MAX_CARS_PER_CATEGORY = 2  # 每车队每类别最多车数
 
+ELO_K = 24.0
+SOLO_TEAM_POINTS = {1: 5, 2: 4, 3: 3}   # 专业单人锦标赛前3名→车队
+TEAM_TEAM_POINTS = {1: 10, 2: 8, 3: 6}  # 专业车队锦标赛前3名→车队
+
 
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(exist_ok=True)

@@ -27,6 +27,61 @@ def create_team(session: Session, *, type: TeamType,
     return team
 
 
+def update_team(session: Session, team_id: int, *, type: TeamType,
+                brand: Optional[str], name: Optional[str]) -> Team:
+    team = session.get(Team, team_id)
+    if team is None:
+        raise TeamValidationError("车队不存在")
+    members = session.exec(select(Car).where(Car.team_id == team_id)).all()
+    if type == TeamType.FACTORY:
+        if not brand:
+            raise TeamValidationError("厂商车队必须填写品牌")
+        mismatch = [c for c in members if c.brand != brand]
+        if mismatch:
+            names = "、".join(c.nickname for c in mismatch)
+            raise TeamValidationError(
+                f"厂商车队品牌需与成员一致,但这些赛车品牌不符:{names}")
+        team.type = type
+        team.brand = brand
+        team.name = f"{brand}车队"
+    else:
+        if not name:
+            raise TeamValidationError("独立车队必须填写名称")
+        team.type = type
+        team.brand = None
+        team.name = name
+    session.add(team)
+    session.commit()
+    session.refresh(team)
+    return team
+
+
+def delete_team(session: Session, team_id: int) -> None:
+    """删除车队:成员车的车队置空,清理积分记录,解除赛事引用。"""
+    from app.models import TeamPointEntry, RaceEntry, Group
+    team = session.get(Team, team_id)
+    if team is None:
+        raise TeamValidationError("车队不存在")
+    for c in session.exec(select(Car).where(Car.team_id == team_id)).all():
+        c.team_id = None
+        session.add(c)
+    for e in session.exec(select(TeamPointEntry).where(
+            TeamPointEntry.team_id == team_id)).all():
+        session.delete(e)
+    for r in session.exec(select(RaceEntry).where(
+            RaceEntry.team_id == team_id)).all():
+        r.team_id = None
+        session.add(r)
+    for g in session.exec(select(Group).where(Group.team_a_id == team_id)).all():
+        g.team_a_id = None
+        session.add(g)
+    for g in session.exec(select(Group).where(Group.team_b_id == team_id)).all():
+        g.team_b_id = None
+        session.add(g)
+    session.delete(team)
+    session.commit()
+
+
 def _category_count(session: Session, team_id: int, category: Category,
                     exclude_car_id: Optional[int]) -> int:
     rows = session.exec(

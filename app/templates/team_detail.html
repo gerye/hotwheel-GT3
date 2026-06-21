@@ -4,7 +4,13 @@
 <div class="card">
   <div style="display:flex;justify-content:space-between">
     <h2 style="margin:0">{{ team.name }}</h2>
-    <a class="btn" href="/teams/{{ team.id }}/edit">编辑</a>
+    <span>
+      <a class="btn" href="/teams/{{ team.id }}/edit">编辑</a>
+      <form method="post" action="/teams/{{ team.id }}/delete" style="display:inline"
+            onsubmit="return confirm('确定删除车队「{{ team.name }}」吗?成员车会被移出车队,不会被删除。')">
+        <button class="btn" type="submit">删除</button>
+      </form>
+    </span>
   </div>
   <p><small>{{ team.type.value }}{% if team.brand %} · 品牌:{{ team.brand }}{% endif %}</small></p>
   <div class="grid">

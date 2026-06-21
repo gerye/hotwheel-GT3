@@ -2,8 +2,28 @@ from __future__ import annotations
 
 from sqlmodel import Session, select
 
-from app.config import SOLO_TEAM_POINTS, TEAM_TEAM_POINTS
+from app.config import SOLO_TEAM_POINTS, TEAM_TEAM_POINTS, INITIAL_MMR
 from app.models import Car, Team, TeamPointEntry
+
+
+def reset_season_mmr(session: Session) -> int:
+    """把所有赛车的赛季 MMR 恢复为初始值。返回受影响数量。"""
+    cars = session.exec(select(Car)).all()
+    for c in cars:
+        c.season_mmr = INITIAL_MMR
+        session.add(c)
+    session.commit()
+    return len(cars)
+
+
+def reset_historical_mmr(session: Session) -> int:
+    """把所有赛车的历史 MMR 恢复为初始值。返回受影响数量。"""
+    cars = session.exec(select(Car)).all()
+    for c in cars:
+        c.historical_mmr = INITIAL_MMR
+        session.add(c)
+    session.commit()
+    return len(cars)
 
 
 def _add_entry(session: Session, *, season_id: int, team_id: int, points: int,

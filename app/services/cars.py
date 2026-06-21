@@ -36,6 +36,36 @@ def create_car(session: Session, *, nickname: str, category: Category,
     return car
 
 
+def delete_car(session: Session, car_id: int) -> None:
+    """删除赛车并清理其在赛事/荣誉中的引用。"""
+    from app.models import (RaceEntry, GroupMember, HeatResult, CarSeasonMMR,
+                            TeamPointEntry, TieBreak)
+    car = session.get(Car, car_id)
+    if car is None:
+        raise CarValidationError("赛车不存在")
+    for r in session.exec(select(RaceEntry).where(RaceEntry.car_id == car_id)).all():
+        session.delete(r)
+    for r in session.exec(select(GroupMember).where(
+            GroupMember.car_id == car_id)).all():
+        session.delete(r)
+    for r in session.exec(select(HeatResult).where(
+            HeatResult.car_id == car_id)).all():
+        session.delete(r)
+    for r in session.exec(select(CarSeasonMMR).where(
+            CarSeasonMMR.car_id == car_id)).all():
+        session.delete(r)
+    for r in session.exec(select(TeamPointEntry).where(
+            TeamPointEntry.source_car_id == car_id)).all():
+        r.source_car_id = None
+        session.add(r)
+    for r in session.exec(select(TieBreak).where(
+            TieBreak.winner_car_id == car_id)).all():
+        r.winner_car_id = None
+        session.add(r)
+    session.delete(car)
+    session.commit()
+
+
 def update_car(session: Session, car_id: int, **fields) -> Car:
     car = session.get(Car, car_id)
     if car is None:

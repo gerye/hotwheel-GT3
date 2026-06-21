@@ -31,6 +31,37 @@ def create_team(request: Request, type: str = Form(...), brand: str = Form(""),
             "error": str(e)}, status_code=200)
 
 
+@router.get("/teams/{team_id}/edit", response_class=HTMLResponse)
+def edit_team_form(team_id: int, request: Request,
+                   session: Session = Depends(get_session)):
+    team = session.get(Team, team_id)
+    return templates.TemplateResponse("team_form.html", {
+        "request": request, "team": team,
+        "action": f"/teams/{team_id}/edit", "error": None})
+
+
+@router.post("/teams/{team_id}/edit")
+def edit_team(team_id: int, request: Request, type: str = Form(...),
+              brand: str = Form(""), name: str = Form(""),
+              session: Session = Depends(get_session)):
+    try:
+        tsvc.update_team(session, team_id, type=TeamType(type),
+                         brand=brand or None, name=name or None)
+        return RedirectResponse(f"/teams/{team_id}", status_code=303)
+    except tsvc.TeamValidationError as e:
+        team = session.get(Team, team_id)
+        return templates.TemplateResponse("team_form.html", {
+            "request": request, "team": team,
+            "action": f"/teams/{team_id}/edit", "error": str(e)},
+            status_code=200)
+
+
+@router.post("/teams/{team_id}/delete")
+def delete_team(team_id: int, session: Session = Depends(get_session)):
+    tsvc.delete_team(session, team_id)
+    return RedirectResponse("/database/teams", status_code=303)
+
+
 @router.get("/teams/{team_id}", response_class=HTMLResponse)
 def team_detail(team_id: int, request: Request,
                 session: Session = Depends(get_session)):

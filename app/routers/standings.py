@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Car
@@ -27,3 +27,15 @@ def standings_page(request: Request, category: str = "GT3",
         "request": request, "cars": cars, "category": category,
         "season_mode": season_mode, "board": board,
         "use_hist": use_hist})
+
+
+@router.post("/standings/reset-season")
+def reset_season(session: Session = Depends(get_session)):
+    st.reset_season_mmr(session)
+    return RedirectResponse("/standings?season_mode=season", status_code=303)
+
+
+@router.post("/standings/reset-historical")
+def reset_historical(session: Session = Depends(get_session)):
+    st.reset_historical_mmr(session)
+    return RedirectResponse("/standings?season_mode=history", status_code=303)

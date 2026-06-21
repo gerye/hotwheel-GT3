@@ -20,6 +20,16 @@
       {{ (c.historical_mmr if use_hist else c.season_mmr) | round | int }}</li>
     {% else %}<li>暂无赛车</li>{% endfor %}
   </ol>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+    <form method="post" action="/standings/reset-season" style="display:inline"
+          onsubmit="return confirm('确定把所有赛车的【赛季 MMR】恢复为初始值 1500 吗?')">
+      <button class="btn" type="submit">一键重置赛季 MMR</button>
+    </form>
+    <form method="post" action="/standings/reset-historical" style="display:inline"
+          onsubmit="return confirm('确定把所有赛车的【历史 MMR】恢复为初始值 1500 吗?此操作不可撤销。')">
+      <button class="btn" type="submit">一键重置历史 MMR</button>
+    </form>
+  </div>
 </div>
 <div class="card">
   <h2>车队积分总榜(本赛季)</h2>

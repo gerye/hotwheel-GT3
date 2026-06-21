@@ -89,6 +89,12 @@ def edit_car(car_id: int, request: Request, nickname: str = Form(...),
             "action": f"/cars/{car_id}/edit", "error": str(e)}, status_code=200)
 
 
+@router.post("/cars/{car_id}/delete")
+def delete_car(car_id: int, session: Session = Depends(get_session)):
+    csvc.delete_car(session, car_id)
+    return RedirectResponse("/database", status_code=303)
+
+
 @router.get("/cars/{car_id}", response_class=HTMLResponse)
 def car_detail(car_id: int, request: Request,
                session: Session = Depends(get_session)):

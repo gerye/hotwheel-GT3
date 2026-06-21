@@ -33,7 +33,14 @@ def end_season(session: Session, season_id: int) -> Season:
         raise SeasonError("赛季不存在")
     if s.status == SeasonStatus.FINISHED:
         raise SeasonError("赛季已结束")
-    # 计划三:在此处插入 MMR 快照与车队积分清零钩子
+    from app.models import Car, CarSeasonMMR
+    from app.config import INITIAL_MMR
+    cars = session.exec(select(Car)).all()
+    for c in cars:
+        session.add(CarSeasonMMR(season_id=s.id, car_id=c.id, mmr=c.season_mmr))
+        c.season_mmr = INITIAL_MMR
+        session.add(c)
+    session.commit()
     s.status = SeasonStatus.FINISHED
     s.ended_at = datetime.utcnow()
     session.add(s)

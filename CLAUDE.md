@@ -9,9 +9,11 @@
 **任何实现都以该文档为准;改需求先改文档。**
 
 ## 技术栈
-- 存储:SQLite(单文件)+ 图片文件夹
-- 后端:轻量本地服务(推荐 Python FastAPI)
-- 前端:响应式网页
+- 存储:SQLite(`data/hotwheel.db`)+ 图片文件夹(`data/images/`)
+- 后端:Python FastAPI + SQLModel + Uvicorn
+- 前端:Jinja2 模板 + HTMX(无构建)+ 少量原生 JS/CSS,响应式
+- 测试:pytest + FastAPI TestClient
+- 启动:`uvicorn app.main:app`
 - 个人页/赛季页等按模板实时生成,不预存
 
 ## 三大功能块

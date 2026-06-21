@@ -34,3 +34,47 @@ def test_tie_counts_as_half():
     totals = {10: 8, 20: 8}    # 同分=平
     d = mmr.elo_deltas(ratings, totals, k=24)
     assert round(d[10], 2) == 0.0 and round(d[20], 2) == 0.0
+
+
+from sqlmodel import select
+from app.models import Car, Group, GroupMember, Heat
+from app.enums import Category, ProLevel, RaceFormat
+from app.services import seasons as ssvc, cars as csvc, tournament as T
+
+
+def _solo_group_recorded(session):
+    """建一个 4 车专业单人赛,按成员顺序录入名次,返回 (group, members)。"""
+    ssvc.start_season(session, name="2026 S1")
+    ids = []
+    for i in range(4):
+        c = csvc.create_car(session, nickname=f"车{i}", category=Category.GT3,
+                            brand="法拉利", casting="", description="", team_id=None)
+        ids.append(c.id)
+    T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                  format=RaceFormat.SOLO, car_ids=ids, seed=1)
+    grp = session.exec(select(Group)).first()
+    members = [m.car_id for m in session.exec(
+        select(GroupMember).where(GroupMember.group_id == grp.id)).all()]
+    for h in session.exec(select(Heat).where(Heat.group_id == grp.id)).all():
+        T.record_heat(session, h.id,
+                      ranks={c: i + 1 for i, c in enumerate(members)})
+    return grp, members
+
+
+def test_settle_group_mmr_updates_both_ladders(session):
+    grp, members = _solo_group_recorded(session)
+    mmr.settle_group_mmr(session, grp.id)
+    winner = session.get(Car, members[0])
+    loser = session.get(Car, members[-1])
+    assert winner.season_mmr > 1500 and winner.historical_mmr > 1500
+    assert loser.season_mmr < 1500 and loser.historical_mmr < 1500
+    session.refresh(grp)
+    assert grp.mmr_settled is True
+
+
+def test_settle_group_mmr_idempotent(session):
+    grp, members = _solo_group_recorded(session)
+    mmr.settle_group_mmr(session, grp.id)
+    first = session.get(Car, members[0]).season_mmr
+    mmr.settle_group_mmr(session, grp.id)   # 再次调用不应重复加分
+    assert session.get(Car, members[0]).season_mmr == first

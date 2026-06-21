@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ race.category.value }} · {{ race.format.value }} · {{ race.pro_level.value }}
+  <span class="tag">{{ race.status.value }}</span></h2>
+<p>第 {{ round.number }} 轮{% if round.is_final %} · 决赛{% endif %}</p>
+{% for g in groups %}{% include "_group_card.html" %}{% endfor %}
+{% if race.status.value == "进行中" %}
+<form method="post" action="/races/{{ race.id }}/advance">
+  <button class="btn">本轮录完,进入下一轮 / 出名次</button>
+</form>
+{% endif %}
+{% endblock %}

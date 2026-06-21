@@ -1,0 +1,26 @@
+<div class="card">
+  <h3>{{ g.group.label }} 组</h3>
+  <p><small>{{ g.members | join(" · ") }}</small></p>
+  {% for hv in g.heats %}
+  <div style="border-top:1px solid #eee;padding-top:8px;margin-top:8px">
+    <strong>第 {{ hv.heat.number }} 场 {% if hv.heat.recorded %}✓{% endif %}</strong>
+    <form method="post" action="/races/{{ race.id }}/heats/{{ hv.heat.id }}">
+      <table style="width:100%">
+        {% for r in hv.rows %}
+        <tr>
+          <td>{{ r.lane }} 道</td>
+          <td>{{ hv.names[r.car_id] }}</td>
+          <td><input name="rank_{{ r.car_id }}" type="number" min="1" max="4"
+                     value="{{ r.rank or '' }}" style="width:60px"></td>
+          <td><label style="display:inline"><input type="checkbox" name="dnf_{{ r.car_id }}" style="width:auto" {{ 'checked' if r.dnf else '' }}> 未完赛</label></td>
+        </tr>
+        {% endfor %}
+      </table>
+      <button class="btn" type="submit">确认本场</button>
+    </form>
+    <form method="post" action="/races/{{ race.id }}/heats/{{ hv.heat.id }}/undo" style="display:inline">
+      <button class="btn" type="submit">撤销本场</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Season
-from app.services import seasons as svc
+from app.models import Season, Race
+from app.services import seasons as svc, standings as st
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -42,5 +42,7 @@ def end_season(season_id: int, session: Session = Depends(get_session)):
 def season_detail(season_id: int, request: Request,
                   session: Session = Depends(get_session)):
     season = session.get(Season, season_id)
+    board = st.team_board(session, season_id)
+    races = session.exec(select(Race).where(Race.season_id == season_id)).all()
     return templates.TemplateResponse("season_detail.html", {
-        "request": request, "season": season})
+        "request": request, "season": season, "board": board, "races": races})

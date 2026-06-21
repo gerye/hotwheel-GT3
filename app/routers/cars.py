@@ -92,7 +92,7 @@ def edit_car(car_id: int, request: Request, nickname: str = Form(...),
 @router.get("/cars/{car_id}", response_class=HTMLResponse)
 def car_detail(car_id: int, request: Request,
                session: Session = Depends(get_session)):
-    from app.models import Car
+    from app.models import Car, TeamPointEntry, CarSeasonMMR
     car = session.get(Car, car_id)
     team_name = None
     if car.team_id:
@@ -102,7 +102,13 @@ def car_detail(car_id: int, request: Request,
     same = session.exec(select(Car).where(Car.category == car.category)
                         .order_by(Car.season_mmr.desc())).all()
     rank = next((i + 1 for i, c in enumerate(same) if c.id == car.id), None)
-    honors: list[str] = []   # 计划二/三填充真实战绩
+    honors: list[str] = []
+    for e in session.exec(select(TeamPointEntry).where(
+            TeamPointEntry.source_car_id == car_id)).all():
+        honors.append(f"为车队贡献 +{e.points}:{e.description}")
+    for snap in session.exec(select(CarSeasonMMR).where(
+            CarSeasonMMR.car_id == car_id)).all():
+        honors.append(f"赛季快照 MMR:{round(snap.mmr)}")
     return templates.TemplateResponse("car_detail.html", {
         "request": request, "car": car, "team_name": team_name,
         "rank": rank, "honors": honors})

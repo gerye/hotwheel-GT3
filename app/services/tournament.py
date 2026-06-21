@@ -51,3 +51,33 @@ def _build_heats(session: Session, group: Group, members: list[int]) -> None:
                 session.add(HeatResult(heat_id=heat.id, car_id=car,
                                        lane=lane_idx, rank=None))
         session.commit()
+
+
+def record_heat(session: Session, heat_id: int, *,
+                ranks: dict[int, int], dnf: set[int] | None = None) -> None:
+    dnf = dnf or set()
+    heat = session.get(Heat, heat_id)
+    rows = session.exec(select(HeatResult).where(HeatResult.heat_id == heat_id)).all()
+    for r in rows:
+        if r.car_id in dnf:
+            r.rank = None
+            r.dnf = True
+        else:
+            r.rank = ranks.get(r.car_id)
+            r.dnf = False
+        session.add(r)
+    heat.recorded = True
+    session.add(heat)
+    session.commit()
+
+
+def undo_heat(session: Session, heat_id: int) -> None:
+    heat = session.get(Heat, heat_id)
+    rows = session.exec(select(HeatResult).where(HeatResult.heat_id == heat_id)).all()
+    for r in rows:
+        r.rank = None
+        r.dnf = False
+        session.add(r)
+    heat.recorded = False
+    session.add(heat)
+    session.commit()

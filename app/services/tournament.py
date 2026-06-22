@@ -168,6 +168,12 @@ def advance_round(session: Session, race_id: int,
 
     # 2) 决赛轮:输出最终名次并结束
     if rnd.is_final:
+        # 车队决赛并列 → 加赛 4 轮,先不结束
+        if race.format == RaceFormat.TEAM:
+            if settle_team_group(session, groups[0].id).winner_team_id is None:
+                extend_team_group_with_replay(session, groups[0].id)
+                return AdvanceResult(kind="needs_results",
+                                     pending_group_ids=[groups[0].id])
         totals = scoring.group_totals(_group_results(session, groups[0].id))
         ranking = scoring.final_ranking(totals)
         race.status = RaceStatus.FINISHED
@@ -182,7 +188,20 @@ def advance_round(session: Session, race_id: int,
                                   race_id=race.id, ranking=team_ranking)
         return AdvanceResult(kind="finished", ranking=ranking)
 
-    # 3) 非决赛轮:逐组结算,遇未裁决并列则要求决断
+    # 3) 车队锦标赛:逐组比车队总分,胜队晋级;并列则加赛 4 轮
+    if race.format == RaceFormat.TEAM:
+        winners: list[int] = []
+        for g in groups:
+            res = settle_team_group(session, g.id)
+            if res.winner_team_id is None:      # 车队总分并列 → 加赛
+                extend_team_group_with_replay(session, g.id)
+                return AdvanceResult(kind="needs_results", pending_group_ids=[g.id])
+            winners.append(res.winner_team_id)
+        _build_team_round(session, race, number=rnd.number + 1,
+                          team_ids=winners, category=race.category, seed=seed)
+        return AdvanceResult(kind="next_round")
+
+    # 4) 单人锦标赛非决赛轮:逐组结算,遇未裁决并列则要求决断
     advancers: list[int] = []
     for g in groups:
         adv = settle_group(session, g.id)
@@ -190,7 +209,7 @@ def advance_round(session: Session, race_id: int,
             return AdvanceResult(kind="needs_decision", pending_group_ids=[g.id])
         advancers.extend(adv.advancers)
 
-    # 4) 用晋级者建下一轮
+    # 5) 用晋级者建下一轮
     _build_round(session, race, number=rnd.number + 1, car_ids=advancers, seed=seed)
     return AdvanceResult(kind="next_round")
 

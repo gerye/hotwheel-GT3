@@ -7,11 +7,19 @@
     <input type="hidden" name="category" value="{{ category }}">
     <input type="hidden" name="pro_level" value="{{ pro_level }}">
     <input type="hidden" name="format" value="{{ format }}">
+    {% if is_team %}
+    {% for t in teams %}
+    <label style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" name="team_ids" value="{{ t.id }}" style="width:auto"> {{ t.name }}
+    </label>
+    {% else %}<p>没有符合条件的车队</p>{% endfor %}
+    {% else %}
     {% for c in cars %}
     <label style="display:flex;align-items:center;gap:8px">
       <input type="checkbox" name="car_ids" value="{{ c.id }}" style="width:auto"> {{ c.nickname }} <small>({{ c.brand }})</small>
     </label>
     {% else %}<p>没有符合条件的赛车</p>{% endfor %}
+    {% endif %}
     <div style="margin-top:12px"><button class="btn">随机分组,开始!</button></div>
   </form>
 </div>

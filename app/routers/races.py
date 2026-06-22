@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import Car, Race, RaceRound, Group, GroupMember, Heat, HeatResult
+from app.models import (Car, Team, Race, RaceRound, Group, GroupMember,
+                        Heat, HeatResult)
 from app.enums import Category, ProLevel, RaceFormat
 from app.enums import RaceStatus
 from app.services import tournament as T, seasons as ssvc, scoring
@@ -22,6 +23,17 @@ def eligible_cars(session: Session, category: Category, *, pro: bool) -> list[Ca
     return cars
 
 
+def eligible_teams(session: Session, category: Category) -> list[Team]:
+    """车队锦标赛可选车队:在该类别下至少有 1 辆车的车队。"""
+    team_ids = {c.team_id for c in session.exec(
+        select(Car).where(Car.category == category,
+                          Car.team_id.is_not(None))).all()}
+    if not team_ids:
+        return []
+    return session.exec(select(Team).where(Team.id.in_(team_ids))
+                        .order_by(Team.name)).all()
+
+
 @router.get("/races", response_class=HTMLResponse)
 def races_page(request: Request, session: Session = Depends(get_session)):
     races = session.exec(select(Race).order_by(Race.id.desc())).all()
@@ -30,33 +42,48 @@ def races_page(request: Request, session: Session = Depends(get_session)):
         "active": ssvc.get_active_season(session)})
 
 
+def _new_race_context(request: Request, session: Session, *, category: str,
+                      pro_level: str, format: str, error: Optional[str] = None):
+    cat = Category(category)
+    is_team = format == RaceFormat.TEAM.value
+    ctx = {"request": request, "category": category, "pro_level": pro_level,
+           "format": format, "is_team": is_team}
+    if is_team:
+        ctx["teams"] = eligible_teams(session, cat)
+    else:
+        ctx["cars"] = eligible_cars(session, cat, pro=(pro_level == "专业"))
+    if error is not None:
+        ctx["error"] = error
+    return templates.TemplateResponse("race_new.html", ctx)
+
+
 @router.get("/races/new", response_class=HTMLResponse)
 def new_race(request: Request, category: str = "GT3", pro_level: str = "专业",
              format: str = "单人锦标赛", session: Session = Depends(get_session)):
-    cat = Category(category)
-    cars = eligible_cars(session, cat, pro=(pro_level == "专业"))
-    return templates.TemplateResponse("race_new.html", {
-        "request": request, "cars": cars, "category": category,
-        "pro_level": pro_level, "format": format})
+    return _new_race_context(request, session, category=category,
+                             pro_level=pro_level, format=format)
 
 
 @router.post("/races")
 def create_race(request: Request, category: str = Form(...),
                 pro_level: str = Form(...), format: str = Form(...),
                 car_ids: list[int] = Form(default=[]),
+                team_ids: list[int] = Form(default=[]),
                 session: Session = Depends(get_session)):
     try:
-        race = T.create_race(session, category=Category(category),
-                             pro_level=ProLevel(pro_level),
-                             format=RaceFormat(format), car_ids=car_ids)
+        if RaceFormat(format) == RaceFormat.TEAM:
+            race = T.create_team_race(session, category=Category(category),
+                                      pro_level=ProLevel(pro_level),
+                                      team_ids=team_ids)
+        else:
+            race = T.create_race(session, category=Category(category),
+                                 pro_level=ProLevel(pro_level),
+                                 format=RaceFormat(format), car_ids=car_ids)
         return RedirectResponse(f"/races/{race.id}", status_code=303)
     except Exception as e:
-        cat = Category(category)
-        cars = eligible_cars(session, cat, pro=(pro_level == "专业"))
-        return templates.TemplateResponse("race_new.html", {
-            "request": request, "cars": cars, "category": category,
-            "pro_level": pro_level, "format": format, "error": str(e)},
-            status_code=200)
+        return _new_race_context(request, session, category=category,
+                                 pro_level=pro_level, format=format,
+                                 error=str(e))
 
 
 @router.get("/races/{race_id}", response_class=HTMLResponse)

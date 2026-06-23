@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import io
 from typing import Optional
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from app import config
@@ -10,9 +11,22 @@ from app.db import get_session
 from app.models import Team
 from app.enums import Category
 from app.services import search as ssvc
+from app import netutil
 
 router = APIRouter()
 templates = Jinja2Templates(directory=config.BASE_DIR / "app" / "templates")
+templates.env.globals["access_url"] = netutil.access_url   # 模板里可调用
+
+
+@router.get("/qr.png")
+def qr_png(request: Request):
+    """二维码:编码当前局域网实时地址(IP + 端口)。"""
+    import qrcode
+    port = request.url.port or 8000
+    url = f"http://{netutil.lan_ip()}:{port}"
+    buf = io.BytesIO()
+    qrcode.make(url).save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
 
 
 def _team_names(session: Session) -> dict[int, str]:

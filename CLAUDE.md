@@ -18,7 +18,7 @@
 - 后端:Python FastAPI + SQLModel + Uvicorn
 - 前端:Jinja2 模板 + HTMX(无构建)+ 少量原生 JS/CSS,响应式
 - 测试:pytest + FastAPI TestClient
-- 启动:`uvicorn app.main:app`
+- 启动:开发用 `uvicorn app.main:app`;给用户用一键启动 `start.bat`(Windows)/ `start.command`(Mac)——自动杀旧服务、起服务、开浏览器,网页页脚有手机扫码二维码(`/qr.png` + `app/netutil.access_url`)。
 - 个人页/赛季页等按模板实时生成,不预存
 
 ## 三大功能块

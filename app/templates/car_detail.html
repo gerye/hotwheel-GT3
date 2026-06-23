@@ -15,6 +15,32 @@
       </form>
     </div>
   </div>
+  <p><small>状态:</small><strong>{{ car.status.value }}</strong>
+  {% set st = car.status.value %}
+  {% if st == "现役" %}
+    <form method="post" action="/cars/{{ car.id }}/status" style="display:inline">
+      <input type="hidden" name="next" value="/cars/{{ car.id }}">
+      <button class="btn" name="status" value="退役" type="submit">退役</button>
+    </form>
+    <form method="post" action="/cars/{{ car.id }}/status" style="display:inline"
+          onsubmit="return confirm('设为未签约会把它移出车队,确定吗?')">
+      <input type="hidden" name="next" value="/cars/{{ car.id }}">
+      <button class="btn" name="status" value="未签约" type="submit">设为未签约(移出车队)</button>
+    </form>
+  {% elif st == "退役" %}
+    <form method="post" action="/cars/{{ car.id }}/status" style="display:inline">
+      <input type="hidden" name="next" value="/cars/{{ car.id }}">
+      <button class="btn" name="status" value="现役" type="submit">复出(现役)</button>
+    </form>
+    <form method="post" action="/cars/{{ car.id }}/status" style="display:inline"
+          onsubmit="return confirm('设为未签约会把它移出车队,确定吗?')">
+      <input type="hidden" name="next" value="/cars/{{ car.id }}">
+      <button class="btn" name="status" value="未签约" type="submit">设为未签约(移出车队)</button>
+    </form>
+  {% else %}
+    <small>— 在「编辑」里加入车队即可成为现役</small>
+  {% endif %}
+  </p>
   <p>{{ car.description }}</p>
   <div class="grid">
     <div class="stat"><div class="label">赛季 MMR</div><div class="value">{{ car.season_mmr | round | int }}</div></div>

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Car, Team
-from app.enums import Category
+from app.enums import Category, CarStatus
 from app.services import teams as tsvc
 
 
@@ -23,13 +23,15 @@ def create_car(session: Session, *, nickname: str, category: Category,
                team_id: Optional[int], image_path: Optional[str] = None) -> Car:
     _check_unique_nickname(session, nickname)
     car = Car(nickname=nickname, category=category, brand=brand, casting=casting,
-              description=description, image_path=image_path)
+              description=description, image_path=image_path,
+              status=CarStatus.UNSIGNED)
     if team_id is not None:
         team = session.get(Team, team_id)
         if team is None:
             raise CarValidationError("车队不存在")
         tsvc.check_can_assign(session, car=car, team=team)
         car.team_id = team_id
+        car.status = CarStatus.ACTIVE   # 加入车队即现役
     session.add(car)
     session.commit()
     session.refresh(car)
@@ -76,12 +78,58 @@ def update_car(session: Session, car_id: int, **fields) -> Car:
     for k, v in fields.items():
         if k != "team_id":
             setattr(car, k, v)
-    if new_team_id is not None:
+    if new_team_id is None:
+        # 移出车队 → 未签约
+        car.team_id = None
+        car.status = CarStatus.UNSIGNED
+    else:
         team = session.get(Team, new_team_id)
         if team is None:
             raise CarValidationError("车队不存在")
-        tsvc.check_can_assign(session, car=car, team=team)
-    car.team_id = new_team_id
+        if car.status == CarStatus.UNSIGNED:
+            # 未签约加入车队 → 现役(占名额,需校验)
+            tsvc.check_can_assign(session, car=car, team=team)
+            car.team_id = new_team_id
+            car.status = CarStatus.ACTIVE
+        else:
+            # 已是现役/退役:现役换队仍要校验名额,退役不占名额
+            if car.status == CarStatus.ACTIVE:
+                tsvc.check_can_assign(session, car=car, team=team)
+            elif team.type == tsvc.TeamType.FACTORY and car.brand != team.brand:
+                raise tsvc.TeamValidationError(
+                    f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」的赛车")
+            car.team_id = new_team_id
+    session.add(car)
+    session.commit()
+    session.refresh(car)
+    return car
+
+
+def change_status(session: Session, car_id: int, new_status: CarStatus) -> Car:
+    """按状态机切换赛车状态(含条件校验)。"""
+    car = session.get(Car, car_id)
+    if car is None:
+        raise CarValidationError("赛车不存在")
+    if new_status == car.status:
+        return car
+    if new_status == CarStatus.UNSIGNED:
+        # 任意状态 → 未签约 = 移出车队
+        car.team_id = None
+        car.status = CarStatus.UNSIGNED
+    elif new_status == CarStatus.RETIRED:
+        if car.status != CarStatus.ACTIVE:
+            raise CarValidationError("只有现役赛车才能退役")
+        car.status = CarStatus.RETIRED
+    elif new_status == CarStatus.ACTIVE:
+        if car.status == CarStatus.UNSIGNED:
+            raise CarValidationError("不能直接从未签约变为现役,请先在「编辑」里加入车队")
+        # 退役 → 复出:需车队现役名额未满
+        team = session.get(Team, car.team_id) if car.team_id else None
+        if team is None:
+            raise CarValidationError("该赛车没有车队,无法复出")
+        tsvc.check_active_capacity(session, team=team, category=car.category,
+                                   exclude_car_id=car.id)
+        car.status = CarStatus.ACTIVE
     session.add(car)
     session.commit()
     session.refresh(car)

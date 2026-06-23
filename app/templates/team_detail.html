@@ -19,10 +19,14 @@
   </div>
   <h3>成员赛车(按类别)</h3>
   {% for c in members %}
-  <div class="row"><span style="flex:1">{{ c.nickname }}</span><span class="tag">{{ c.category.value }}</span></div>
+  <div class="row">
+    <a href="/cars/{{ c.id }}" style="flex:1;text-decoration:none;color:inherit">{{ c.nickname }}</a>
+    <span class="tag">{{ c.category.value }}</span>
+    <span class="tag">{{ c.status.value }}</span>
+  </div>
   {% else %}<p>暂无成员</p>{% endfor %}
   {% for cat, used in capacity.items() %}
-  <p><small>{{ cat }} {{ used }}/2</small></p>
+  <p><small>{{ cat }} 现役 {{ used }}/2</small></p>
   {% endfor %}
   <h3>本赛季积分来源</h3>
   {% for line in point_sources %}<p>{{ line }}</p>{% else %}<p>暂无</p>{% endfor %}

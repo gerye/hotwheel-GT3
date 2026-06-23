@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Team, Car
-from app.enums import TeamType, Category
+from app.enums import TeamType, Category, CarStatus
 from app.config import MAX_CARS_PER_CATEGORY
 
 
@@ -64,6 +64,7 @@ def delete_team(session: Session, team_id: int) -> None:
         raise TeamValidationError("车队不存在")
     for c in session.exec(select(Car).where(Car.team_id == team_id)).all():
         c.team_id = None
+        c.status = CarStatus.UNSIGNED
         session.add(c)
     for e in session.exec(select(TeamPointEntry).where(
             TeamPointEntry.team_id == team_id)).all():
@@ -82,20 +83,29 @@ def delete_team(session: Session, team_id: int) -> None:
     session.commit()
 
 
-def _category_count(session: Session, team_id: int, category: Category,
-                    exclude_car_id: Optional[int]) -> int:
+def active_count(session: Session, team_id: int, category: Category,
+                 exclude_car_id: Optional[int]) -> int:
+    """车队在某类别下的现役车手数(退役不计)。"""
     rows = session.exec(
-        select(Car).where(Car.team_id == team_id, Car.category == category)
+        select(Car).where(Car.team_id == team_id, Car.category == category,
+                          Car.status == CarStatus.ACTIVE)
     ).all()
     return len([c for c in rows if c.id != exclude_car_id])
 
 
+def check_active_capacity(session: Session, *, team: Team, category: Category,
+                          exclude_car_id: Optional[int]) -> None:
+    """现役名额校验:每类别最多 MAX_CARS_PER_CATEGORY 个现役。"""
+    if active_count(session, team.id, category, exclude_car_id) >= MAX_CARS_PER_CATEGORY:
+        raise TeamValidationError(
+            f"车队「{team.name}」在 {category.value} 类别现役已满 "
+            f"({MAX_CARS_PER_CATEGORY} 个现役车手),请先让某辆车退役")
+
+
 def check_can_assign(session: Session, *, car: Car, team: Team) -> None:
+    """把 car 加入 team(成为现役)前的校验。"""
     if team.type == TeamType.FACTORY and car.brand != team.brand:
         raise TeamValidationError(
             f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」的赛车")
-    count = _category_count(session, team.id, car.category, exclude_car_id=car.id)
-    if count >= MAX_CARS_PER_CATEGORY:
-        raise TeamValidationError(
-            f"车队「{team.name}」在 {car.category.value} 类别已满 "
-            f"({MAX_CARS_PER_CATEGORY} 辆)")
+    check_active_capacity(session, team=team, category=car.category,
+                          exclude_car_id=car.id)

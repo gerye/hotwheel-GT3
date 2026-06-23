@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
-from app.enums import Category, TeamType, SeasonStatus
+from app.enums import Category, TeamType, SeasonStatus, CarStatus
 from app.enums import ProLevel, RaceFormat, RaceStatus
 
 
@@ -23,6 +23,7 @@ class Car(SQLModel, table=True):
     category: Category
     description: str = ""
     team_id: Optional[int] = Field(default=None, foreign_key="team.id")
+    status: CarStatus = CarStatus.UNSIGNED
     season_mmr: float = 1500.0
     historical_mmr: float = 1500.0
 

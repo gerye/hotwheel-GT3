@@ -9,7 +9,8 @@ from sqlmodel import Session, select
 from app import config
 from app.db import get_session
 from app.models import Team
-from app.enums import Category
+from urllib.parse import quote
+from app.enums import Category, CarStatus
 from app.services import cars as csvc, teams as tsvc
 from app.routers.pages import templates
 
@@ -93,6 +94,19 @@ def edit_car(car_id: int, request: Request, nickname: str = Form(...),
 def delete_car(car_id: int, session: Session = Depends(get_session)):
     csvc.delete_car(session, car_id)
     return RedirectResponse("/database", status_code=303)
+
+
+@router.post("/cars/{car_id}/status")
+def change_status(car_id: int, status: str = Form(...),
+                  next: str = Form("/database"),
+                  session: Session = Depends(get_session)):
+    try:
+        csvc.change_status(session, car_id, CarStatus(status))
+        return RedirectResponse(next, status_code=303)
+    except (csvc.CarValidationError, tsvc.TeamValidationError) as e:
+        sep = "&" if "?" in next else "?"
+        return RedirectResponse(f"{next}{sep}err={quote(str(e))}",
+                                status_code=303)
 
 
 @router.get("/cars/{car_id}", response_class=HTMLResponse)

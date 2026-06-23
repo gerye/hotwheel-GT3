@@ -1,6 +1,6 @@
 import pytest
 from app.models import Team, Car
-from app.enums import TeamType, Category
+from app.enums import TeamType, Category, CarStatus
 from app.services import teams as svc
 
 
@@ -48,7 +48,8 @@ def test_assign_car_brand_match_to_factory_ok(session):
 def test_category_capacity_enforced(session):
     t = _factory(session, "法拉利")
     for i in range(2):
-        c = Car(nickname=f"红{i}", category=Category.GT3, brand="法拉利", team_id=t.id)
+        c = Car(nickname=f"红{i}", category=Category.GT3, brand="法拉利",
+                team_id=t.id, status=CarStatus.ACTIVE)
         session.add(c)
     session.commit()
     third = Car(nickname="红3", category=Category.GT3, brand="法拉利")

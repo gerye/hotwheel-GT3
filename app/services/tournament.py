@@ -19,10 +19,11 @@ def create_race(session: Session, *, category: Category, pro_level: ProLevel,
     if season is None:
         raise ValueError("没有进行中的赛季,请先开启赛季")
     if pro_level == ProLevel.PRO:
+        from app.enums import CarStatus
         for cid in car_ids:
             car = session.get(Car, cid)
-            if car is not None and car.team_id is None:
-                raise ValueError("专业赛不能选择没有车队的赛车")
+            if car is not None and car.status != CarStatus.ACTIVE:
+                raise ValueError("专业赛只能选择现役赛车")
     grouping.group_sizes(len(car_ids))   # 提前校验数量,非法直接抛 GroupingError
     race = Race(season_id=season.id, category=category, pro_level=pro_level,
                 format=format, status=RaceStatus.IN_PROGRESS)
@@ -224,8 +225,10 @@ def _team_final_ranking(session: Session, race: Race, final_group: Group) -> lis
 
 
 def _team_cars(session: Session, team_id: int, category: Category) -> list[int]:
+    from app.enums import CarStatus
     return [c.id for c in session.exec(select(Car).where(
-        Car.team_id == team_id, Car.category == category)).all()]
+        Car.team_id == team_id, Car.category == category,
+        Car.status == CarStatus.ACTIVE)).all()]   # 只派现役车手出战
 
 
 def create_team_race(session: Session, *, category: Category, pro_level: ProLevel,

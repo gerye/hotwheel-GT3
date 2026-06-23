@@ -66,13 +66,14 @@ def delete_team(team_id: int, session: Session = Depends(get_session)):
 def team_detail(team_id: int, request: Request,
                 session: Session = Depends(get_session)):
     from app.models import Car
-    from app.config import MAX_CARS_PER_CATEGORY
+    from app.enums import CarStatus
     team = session.get(Team, team_id)
     members = session.exec(select(Car).where(Car.team_id == team_id)
                            .order_by(Car.category)).all()
-    capacity: dict[str, int] = {}
+    capacity: dict[str, int] = {}      # 现役占用(退役不计)
     for c in members:
-        capacity[c.category.value] = capacity.get(c.category.value, 0) + 1
+        if c.status == CarStatus.ACTIVE:
+            capacity[c.category.value] = capacity.get(c.category.value, 0) + 1
     active = ssvc.get_active_season(session)
     season_points = st.team_season_points(session, team_id, active.id) if active else 0
     sources = (st.team_point_sources(session, team_id, active.id) if active else [])

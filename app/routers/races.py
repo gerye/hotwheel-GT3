@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import (Car, Team, Race, RaceRound, Group, GroupMember,
                         Heat, HeatResult)
-from app.enums import Category, ProLevel, RaceFormat
+from app.enums import Category, ProLevel, RaceFormat, CarStatus
 from app.enums import RaceStatus
 from app.services import tournament as T, seasons as ssvc, scoring
 from app.routers.pages import templates
@@ -18,15 +18,16 @@ router = APIRouter()
 def eligible_cars(session: Session, category: Category, *, pro: bool) -> list[Car]:
     stmt = select(Car).where(Car.category == category)
     cars = session.exec(stmt.order_by(Car.nickname)).all()
-    if pro:                                 # 专业赛排除无车队的车
-        cars = [c for c in cars if c.team_id is not None]
-    return cars
+    if pro:                                 # 专业赛仅限现役
+        cars = [c for c in cars if c.status == CarStatus.ACTIVE]
+    return cars                             # 表演赛:任何状态都可
 
 
 def eligible_teams(session: Session, category: Category) -> list[Team]:
-    """车队锦标赛可选车队:在该类别下至少有 1 辆车的车队。"""
+    """车队锦标赛可选车队:在该类别下至少有 1 个现役车手的车队。"""
     team_ids = {c.team_id for c in session.exec(
         select(Car).where(Car.category == category,
+                          Car.status == CarStatus.ACTIVE,
                           Car.team_id.is_not(None))).all()}
     if not team_ids:
         return []

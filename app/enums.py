@@ -9,6 +9,12 @@ class Category(str, Enum):
     ROAD = "公路车"
 
 
+class CarStatus(str, Enum):
+    UNSIGNED = "未签约"
+    ACTIVE = "现役"
+    RETIRED = "退役"
+
+
 class TeamType(str, Enum):
     FACTORY = "厂商车队"
     INDEPENDENT = "独立车队"

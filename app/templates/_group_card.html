@@ -5,7 +5,7 @@
   {% endif %}
   <p><small>{{ g.members | join(" · ") }}</small></p>
   {% for hv in g.heats %}
-  <div style="border-top:1px solid #eee;padding-top:8px;margin-top:8px">
+  <div id="heat{{ hv.heat.id }}" style="border-top:1px solid #eee;padding-top:8px;margin-top:8px">
     <strong>第 {{ hv.heat.number }} 场 {% if hv.heat.recorded %}✓{% endif %}</strong>
     <form method="post" action="/races/{{ race.id }}/heats/{{ hv.heat.id }}">
       <table style="width:100%">

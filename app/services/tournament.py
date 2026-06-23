@@ -63,11 +63,32 @@ def _build_heats(session: Session, group: Group, members: list[int]) -> None:
         session.commit()
 
 
+class HeatInputError(Exception):
+    """单场结果录入非法。"""
+
+
+def _validate_heat_input(car_ids: set[int], ranks: dict[int, int],
+                         dnf: set[int]) -> None:
+    for cid in car_ids:
+        has_rank = ranks.get(cid) is not None
+        is_dnf = cid in dnf
+        if has_rank and is_dnf:
+            raise HeatInputError("同一辆车不能既填名次又勾「未完赛」,请修正后重新录入。")
+        if not has_rank and not is_dnf:
+            raise HeatInputError("每辆车都要填名次或勾「未完赛」,请补全后重新录入。")
+    finishers = [cid for cid in car_ids
+                 if cid not in dnf and ranks.get(cid) is not None]
+    given = sorted(ranks[cid] for cid in finishers)
+    if given != list(range(1, len(finishers) + 1)):
+        raise HeatInputError("名次必须是 1、2、3… 连续且不重复(不能并列或缺号),请重新录入。")
+
+
 def record_heat(session: Session, heat_id: int, *,
                 ranks: dict[int, int], dnf: set[int] | None = None) -> None:
     dnf = dnf or set()
     heat = session.get(Heat, heat_id)
     rows = session.exec(select(HeatResult).where(HeatResult.heat_id == heat_id)).all()
+    _validate_heat_input({r.car_id for r in rows}, ranks, dnf)
     for r in rows:
         if r.car_id in dnf:
             r.rank = None

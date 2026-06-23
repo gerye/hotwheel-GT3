@@ -132,7 +132,12 @@ async def record_heat(race_id: int, heat_id: int, request: Request,
             ranks[int(k[5:])] = int(v)
         if k.startswith("dnf_"):
             dnf.add(int(k[4:]))
-    T.record_heat(session, heat_id, ranks=ranks, dnf=dnf)
+    try:
+        T.record_heat(session, heat_id, ranks=ranks, dnf=dnf)
+    except T.HeatInputError as e:
+        from urllib.parse import quote
+        return RedirectResponse(f"/races/{race_id}?err={quote(str(e))}#heat{heat_id}",
+                                status_code=303)
     return RedirectResponse(f"/races/{race_id}", status_code=303)
 
 

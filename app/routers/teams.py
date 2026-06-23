@@ -20,10 +20,14 @@ def new_team(request: Request):
 
 @router.post("/teams")
 def create_team(request: Request, type: str = Form(...), brand: str = Form(""),
-                name: str = Form(""), session: Session = Depends(get_session)):
+                name: str = Form(""), alias_f1: str = Form(""),
+                alias_gt3: str = Form(""), alias_road: str = Form(""),
+                session: Session = Depends(get_session)):
     try:
         team = tsvc.create_team(session, type=TeamType(type),
-                                brand=brand or None, name=name or None)
+                                brand=brand or None, name=name or None,
+                                alias_f1=alias_f1, alias_gt3=alias_gt3,
+                                alias_road=alias_road)
         return RedirectResponse(f"/teams/{team.id}", status_code=303)
     except tsvc.TeamValidationError as e:
         return templates.TemplateResponse("team_form.html", {
@@ -43,10 +47,14 @@ def edit_team_form(team_id: int, request: Request,
 @router.post("/teams/{team_id}/edit")
 def edit_team(team_id: int, request: Request, type: str = Form(...),
               brand: str = Form(""), name: str = Form(""),
+              alias_f1: str = Form(""), alias_gt3: str = Form(""),
+              alias_road: str = Form(""),
               session: Session = Depends(get_session)):
     try:
         tsvc.update_team(session, team_id, type=TeamType(type),
-                         brand=brand or None, name=name or None)
+                         brand=brand or None, name=name or None,
+                         alias_f1=alias_f1, alias_gt3=alias_gt3,
+                         alias_road=alias_road)
         return RedirectResponse(f"/teams/{team_id}", status_code=303)
     except tsvc.TeamValidationError as e:
         team = session.get(Team, team_id)
@@ -66,7 +74,7 @@ def delete_team(team_id: int, session: Session = Depends(get_session)):
 def team_detail(team_id: int, request: Request,
                 session: Session = Depends(get_session)):
     from app.models import Car
-    from app.enums import CarStatus
+    from app.enums import CarStatus, Category
     team = session.get(Team, team_id)
     members = session.exec(select(Car).where(Car.team_id == team_id)
                            .order_by(Car.category)).all()
@@ -78,7 +86,8 @@ def team_detail(team_id: int, request: Request,
     season_points = st.team_season_points(session, team_id, active.id) if active else 0
     sources = (st.team_point_sources(session, team_id, active.id) if active else [])
     point_sources = [f"+{e.points} {e.description}" for e in sources]
+    specifics = [(c.value, team.specific_name(c)) for c in Category]
     return templates.TemplateResponse("team_detail.html", {
         "request": request, "team": team, "members": members,
         "capacity": capacity, "season_points": season_points,
-        "point_sources": point_sources})
+        "point_sources": point_sources, "specifics": specifics})

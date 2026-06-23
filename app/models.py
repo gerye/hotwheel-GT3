@@ -7,11 +7,32 @@ from app.enums import Category, TeamType, SeasonStatus, CarStatus
 from app.enums import ProLevel, RaceFormat, RaceStatus
 
 
+_ALIAS_FIELD = {
+    Category.F1: "alias_f1",
+    Category.GT3: "alias_gt3",
+    Category.ROAD: "alias_road",
+}
+
+
 class Team(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     type: TeamType
     brand: Optional[str] = None          # 仅厂商车队
-    name: str = Field(index=True)        # 显示名(厂商=品牌+车队;独立=用户名称)
+    name: str = Field(index=True)        # 宏观名(厂商=品牌+车队;独立=用户名称)
+    # 各赛事等级的分队别名(可空)
+    alias_f1: Optional[str] = None
+    alias_gt3: Optional[str] = None
+    alias_road: Optional[str] = None
+
+    def alias_for(self, category: Category) -> str:
+        return getattr(self, _ALIAS_FIELD[category]) or ""
+
+    def specific_name(self, category: Category) -> str:
+        """分等级的具体名:厂商=品牌+别名+类别+车队;独立=宏观名+别名+类别。"""
+        alias = self.alias_for(category)
+        if self.type == TeamType.FACTORY:
+            return f"{self.brand}{alias}{category.value}车队"
+        return f"{self.name}{alias}{category.value}"
 
 
 class Car(SQLModel, table=True):

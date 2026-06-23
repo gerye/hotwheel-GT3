@@ -14,6 +14,14 @@
     <input name="brand" value="{{ team.brand if team and team.brand else "" }}">
     <label>名称(独立车队填)</label>
     <input name="name" value="{{ team.name if team and team.type.value=="独立车队" else "" }}">
+    <hr style="margin:16px 0;border:none;border-top:1px solid #eee">
+    <p><small>分队别名(可留空):用于「具体名」,如 法拉利<strong>大王八</strong>F1车队</small></p>
+    <label>F1 分队别名</label>
+    <input name="alias_f1" value="{{ team.alias_f1 if team and team.alias_f1 else "" }}">
+    <label>GT3 分队别名</label>
+    <input name="alias_gt3" value="{{ team.alias_gt3 if team and team.alias_gt3 else "" }}">
+    <label>公路车 分队别名</label>
+    <input name="alias_road" value="{{ team.alias_road if team and team.alias_road else "" }}">
     <div style="margin-top:12px"><button class="btn" type="submit">保存</button></div>
   </form>
 </div>

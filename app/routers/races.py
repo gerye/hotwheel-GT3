@@ -106,7 +106,13 @@ def race_detail(race_id: int, request: Request,
             rows = session.exec(select(HeatResult).where(
                 HeatResult.heat_id == h.id).order_by(HeatResult.lane)).all()
             heat_views.append({"heat": h, "rows": rows, "names": names})
-        view.append({"group": g, "members": members, "heats": heat_views})
+        gv = {"group": g, "members": members, "heats": heat_views}
+        if race.format == RaceFormat.TEAM:   # 车队赛:用具体名展示两队
+            ta = session.get(Team, g.team_a_id) if g.team_a_id else None
+            tb = session.get(Team, g.team_b_id) if g.team_b_id else None
+            gv["team_a"] = ta.specific_name(race.category) if ta else None
+            gv["team_b"] = tb.specific_name(race.category) if tb else None
+        view.append(gv)
     final_ranking = None
     if race.status == RaceStatus.FINISHED and groups:
         totals = scoring.group_totals(T._group_results(session, groups[0].id))

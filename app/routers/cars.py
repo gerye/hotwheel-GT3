@@ -117,7 +117,7 @@ def car_detail(car_id: int, request: Request,
     team_name = None
     if car.team_id:
         t = session.get(Team, car.team_id)
-        team_name = t.name if t else None
+        team_name = t.specific_name(car.category) if t else None   # 具体名(按本车类别)
     # 同类别按赛季 MMR 排名
     same = session.exec(select(Car).where(Car.category == car.category)
                         .order_by(Car.season_mmr.desc())).all()

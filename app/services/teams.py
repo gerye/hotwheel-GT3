@@ -11,8 +11,17 @@ class TeamValidationError(Exception):
     pass
 
 
+def _apply_aliases(team: Team, alias_f1: Optional[str], alias_gt3: Optional[str],
+                   alias_road: Optional[str]) -> None:
+    team.alias_f1 = alias_f1 or None
+    team.alias_gt3 = alias_gt3 or None
+    team.alias_road = alias_road or None
+
+
 def create_team(session: Session, *, type: TeamType,
-                brand: Optional[str], name: Optional[str]) -> Team:
+                brand: Optional[str], name: Optional[str],
+                alias_f1: Optional[str] = None, alias_gt3: Optional[str] = None,
+                alias_road: Optional[str] = None) -> Team:
     if type == TeamType.FACTORY:
         if not brand:
             raise TeamValidationError("厂商车队必须填写品牌")
@@ -21,6 +30,7 @@ def create_team(session: Session, *, type: TeamType,
         if not name:
             raise TeamValidationError("独立车队必须填写名称")
         team = Team(type=type, brand=None, name=name)
+    _apply_aliases(team, alias_f1, alias_gt3, alias_road)
     session.add(team)
     session.commit()
     session.refresh(team)
@@ -28,7 +38,9 @@ def create_team(session: Session, *, type: TeamType,
 
 
 def update_team(session: Session, team_id: int, *, type: TeamType,
-                brand: Optional[str], name: Optional[str]) -> Team:
+                brand: Optional[str], name: Optional[str],
+                alias_f1: Optional[str] = None, alias_gt3: Optional[str] = None,
+                alias_road: Optional[str] = None) -> Team:
     team = session.get(Team, team_id)
     if team is None:
         raise TeamValidationError("车队不存在")
@@ -50,6 +62,7 @@ def update_team(session: Session, team_id: int, *, type: TeamType,
         team.type = type
         team.brand = None
         team.name = name
+    _apply_aliases(team, alias_f1, alias_gt3, alias_road)
     session.add(team)
     session.commit()
     session.refresh(team)

@@ -13,6 +13,8 @@
     </span>
   </div>
   <p><small>{{ team.type.value }}{% if team.brand %} · 品牌:{{ team.brand }}{% endif %}</small></p>
+  <p><small>分队具体名(在「编辑」里改别名):</small><br>
+  {% for cat, sname in specifics %}<small>{{ cat }} → {{ sname }}</small><br>{% endfor %}</p>
   <div class="grid">
     <div class="stat"><div class="label">本赛季积分</div><div class="value">{{ season_points }}</div></div>
     <div class="stat"><div class="label">成员车</div><div class="value">{{ members|length }}</div></div>

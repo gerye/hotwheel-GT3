@@ -152,9 +152,17 @@ def test_migration_backfills_status_from_team():
     db.set_engine(eng)
     try:
         db.init_db()
+        # 底层按枚举「名字」存储
         rows = dict(eng.connect().execute(text(
             "SELECT nickname, status FROM car")).fetchall())
-        assert rows["有队"] == "现役"
-        assert rows["无队"] == "未签约"
+        assert rows["有队"] == "ACTIVE"
+        assert rows["无队"] == "UNSIGNED"
+        # 关键:经 ORM 读取不报 LookupError,且映射回正确枚举
+        from sqlmodel import Session, select
+        from app.models import Car
+        with Session(eng) as s:
+            got = {c.nickname: c.status for c in s.exec(select(Car)).all()}
+        assert got["有队"] == CarStatus.ACTIVE
+        assert got["无队"] == CarStatus.UNSIGNED
     finally:
         db.set_engine(None)

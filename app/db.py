@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 from collections.abc import Iterator
 from sqlalchemy import inspect, text
 from sqlmodel import Session, SQLModel, create_engine
@@ -45,7 +46,10 @@ def sync_schema(engine) -> list[tuple[str, str]]:
             default_sql = ""
             arg = getattr(col.default, "arg", None)
             if arg is not None and not callable(arg):
-                if isinstance(arg, bool):
+                if isinstance(arg, enum.Enum):
+                    # SQLAlchemy 按枚举「名字」存储,默认值也要用名字
+                    default_sql = f" DEFAULT '{arg.name}'"
+                elif isinstance(arg, bool):
                     default_sql = f" DEFAULT {1 if arg else 0}"
                 elif isinstance(arg, (int, float)):
                     default_sql = f" DEFAULT {arg}"
@@ -65,10 +69,10 @@ def sync_schema(engine) -> list[tuple[str, str]]:
 def _backfill_after_migration(engine, added: list[tuple[str, str]]) -> None:
     """对新加的列做一次性数据回填。"""
     if ("car", "status") in added:
-        # 存量赛车:有车队→现役,无车队→未签约(default 已是未签约)
+        # 存量赛车:有车队→ACTIVE,无车队→UNSIGNED(SQLAlchemy 按枚举名存)
         with engine.begin() as conn:
             conn.execute(text(
-                "UPDATE car SET status='现役' WHERE team_id IS NOT NULL"))
+                "UPDATE car SET status='ACTIVE' WHERE team_id IS NOT NULL"))
 
 
 def init_db() -> None:

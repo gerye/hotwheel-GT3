@@ -1,8 +1,14 @@
 __pycache__/
 *.pyc
 .venv/
-data/
 .pytest_cache/
+
+# 数据纳入版本库以便跨机同步(data/hotwheel.db + data/images/);
+# 但忽略备份与 SQLite 运行时临时文件
+data/*.bak
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
 
 *.egg-info/
 

@@ -107,6 +107,7 @@ def race_detail(race_id: int, request: Request,
                 HeatResult.heat_id == h.id).order_by(HeatResult.lane)).all()
             heat_views.append({"heat": h, "rows": rows, "names": names})
         gv = {"group": g, "members": members, "heats": heat_views}
+        gv["board"] = T.group_scoreboard(session, g, race)   # 实时积分榜
         if race.format == RaceFormat.TEAM:   # 车队赛:用具体名展示两队
             ta = session.get(Team, g.team_a_id) if g.team_a_id else None
             tb = session.get(Team, g.team_b_id) if g.team_b_id else None

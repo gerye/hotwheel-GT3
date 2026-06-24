@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
-                        Heat, HeatResult, Car, TieBreak)
+                        Heat, HeatResult, Car, Team, TieBreak)
 from app.enums import Category, ProLevel, RaceFormat, RaceStatus
 from app.services import grouping, lineup, seasons as ssvc
 from app.services import mmr as mmr_svc, standings as st_svc
@@ -115,6 +115,49 @@ def undo_heat(session: Session, heat_id: int) -> None:
     group.mmr_settled = False
     session.add(group)
     session.commit()
+
+
+def group_scoreboard(session: Session, group: Group, race: Race) -> dict:
+    """小组实时积分榜:每车每场得分 + 总分;车队赛按车队总分聚合。"""
+    heats = session.exec(select(Heat).where(Heat.group_id == group.id)
+                         .order_by(Heat.number)).all()
+    n = len(heats)
+    names = {c.id: c.nickname for c in session.exec(select(Car)).all()}
+    per_car: dict[int, list] = {}
+    for idx, h in enumerate(heats):
+        for r in session.exec(select(HeatResult)
+                              .where(HeatResult.heat_id == h.id)).all():
+            per_car.setdefault(r.car_id, [0] * n)
+            per_car[r.car_id][idx] = scoring.points_for_rank(r.rank)
+    car_total = {cid: sum(v) for cid, v in per_car.items()}
+
+    def car_row(cid: int) -> dict:
+        return {"name": names.get(cid, "?"), "heats": per_car[cid],
+                "total": car_total[cid]}
+
+    if race.format == RaceFormat.TEAM:
+        entries = session.exec(select(RaceEntry)
+                               .where(RaceEntry.race_id == race.id)).all()
+        car_team = {e.car_id: e.team_id for e in entries if e.team_id is not None}
+        team_cars: dict[int, list] = {}
+        for cid in per_car:
+            tid = car_team.get(cid)
+            if tid is not None:
+                team_cars.setdefault(tid, []).append(cid)
+        totals = team_scoring.team_totals(team_cars, car_total)
+        teams = []
+        for tid in sorted(totals, key=lambda t: totals[t], reverse=True):
+            tm = session.get(Team, tid)
+            teams.append({
+                "name": tm.specific_name(race.category) if tm else "?",
+                "total": totals[tid],
+                "cars": [car_row(cid) for cid in team_cars[tid]],
+            })
+        return {"is_team": True, "n_heats": n, "teams": teams}
+
+    rows = sorted((car_row(cid) for cid in per_car),
+                  key=lambda r: r["total"], reverse=True)
+    return {"is_team": False, "n_heats": n, "rows": rows}
 
 
 def _group_results(session: Session, group_id: int) -> dict[int, list]:

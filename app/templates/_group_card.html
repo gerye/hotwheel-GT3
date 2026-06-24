@@ -4,6 +4,38 @@
   <p><strong>{{ g.team_a or "?" }}</strong> vs <strong>{{ g.team_b or "?" }}</strong></p>
   {% endif %}
   <p><small>{{ g.members | join(" · ") }}</small></p>
+  {% if g.board %}
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">
+    <tr style="border-bottom:1px solid #ddd;text-align:center">
+      <th style="text-align:left">车/队</th>
+      {% for i in range(g.board.n_heats) %}<th>第{{ i + 1 }}场</th>{% endfor %}
+      <th>总分</th>
+    </tr>
+    {% if not g.board.is_team %}
+      {% for row in g.board.rows %}
+      <tr style="border-bottom:1px solid #f0f0f0;text-align:center">
+        <td style="text-align:left">{{ row.name }}</td>
+        {% for p in row.heats %}<td>{{ p }}</td>{% endfor %}
+        <td><strong>{{ row.total }}</strong></td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      {% for team in g.board.teams %}
+      <tr style="background:#f6f6f6">
+        <td colspan="{{ g.board.n_heats + 1 }}"><strong>{{ team.name }}</strong></td>
+        <td style="text-align:center"><strong>{{ team.total }}</strong></td>
+      </tr>
+        {% for row in team.cars %}
+        <tr style="border-bottom:1px solid #f0f0f0;text-align:center">
+          <td style="text-align:left;padding-left:12px">{{ row.name }}</td>
+          {% for p in row.heats %}<td>{{ p }}</td>{% endfor %}
+          <td>{{ row.total }}</td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+    {% endif %}
+  </table>
+  {% endif %}
   {% for hv in g.heats %}
   <div id="heat{{ hv.heat.id }}" style="border-top:1px solid #eee;padding-top:8px;margin-top:8px">
     <strong>第 {{ hv.heat.number }} 场 {% if hv.heat.recorded %}✓{% endif %}</strong>

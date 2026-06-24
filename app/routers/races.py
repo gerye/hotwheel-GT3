@@ -97,8 +97,10 @@ def race_detail(race_id: int, request: Request,
     view = []
     names = {c.id: c.nickname for c in session.exec(select(Car)).all()}
     for g in groups:
-        members = [names[m.car_id] for m in session.exec(select(GroupMember)
-                   .where(GroupMember.group_id == g.id)).all()]
+        gms = session.exec(select(GroupMember)
+                           .where(GroupMember.group_id == g.id)).all()
+        members = [names[m.car_id] for m in gms]
+        member_cars = [session.get(Car, m.car_id) for m in gms]
         heats = session.exec(select(Heat).where(Heat.group_id == g.id)
                              .order_by(Heat.number)).all()
         heat_views = []
@@ -106,7 +108,8 @@ def race_detail(race_id: int, request: Request,
             rows = session.exec(select(HeatResult).where(
                 HeatResult.heat_id == h.id).order_by(HeatResult.lane)).all()
             heat_views.append({"heat": h, "rows": rows, "names": names})
-        gv = {"group": g, "members": members, "heats": heat_views}
+        gv = {"group": g, "members": members, "member_cars": member_cars,
+              "heats": heat_views}
         gv["board"] = T.group_scoreboard(session, g, race)   # 实时积分榜
         if race.format == RaceFormat.TEAM:   # 车队赛:用具体名展示两队
             ta = session.get(Team, g.team_a_id) if g.team_a_id else None

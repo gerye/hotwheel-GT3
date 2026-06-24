@@ -3,7 +3,17 @@
   {% if g.team_a or g.team_b %}
   <p><strong>{{ g.team_a or "?" }}</strong> vs <strong>{{ g.team_b or "?" }}</strong></p>
   {% endif %}
-  <p><small>{{ g.members | join(" · ") }}</small></p>
+  {% if g.member_cars %}
+  <div style="display:flex;gap:12px;overflow-x:auto;padding:8px 0;margin-bottom:4px">
+    {% for c in g.member_cars %}
+    <div style="text-align:center;min-width:72px">
+      {% if c.image_path %}<img src="/static/uploads/{{ c.image_path }}" style="width:72px;height:54px;object-fit:cover;border-radius:6px">
+      {% else %}<span class="thumb" style="width:72px;height:54px;display:inline-block"></span>{% endif %}
+      <div><small>{{ c.nickname }}</small></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% if g.board %}
   <table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">
     <tr style="border-bottom:1px solid #ddd;text-align:center">

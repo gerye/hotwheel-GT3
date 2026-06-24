@@ -5,10 +5,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Season, Race
-from app.services import seasons as svc, standings as st
+from app.services import seasons as svc, standings as st, admin as admin_svc
 from app.routers.pages import templates
 
 router = APIRouter()
+
+
+@router.post("/admin/wipe-all")
+def wipe_all(session: Session = Depends(get_session)):
+    admin_svc.wipe_all_data(session)
+    return RedirectResponse("/database", status_code=303)
 
 
 @router.get("/seasons", response_class=HTMLResponse)

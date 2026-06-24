@@ -9,9 +9,9 @@
 **任何实现都以该文档为准;改需求先改文档。**
 
 ## 环境约束(重要)
-- 本机仅有系统 Python 3.9.6,无 brew/pyenv/conda。因此目标运行环境为 **Python 3.9**。
-- 计划里的代码用了 3.10+ 的 `X | None` 联合类型写法。为在 3.9 运行,**每个 `.py` 模块第一行必须是 `from __future__ import annotations`**(让注解延迟为字符串,避免运行时报错)。SQLModel 表模型一律用 `Optional[...]`。
-- `pyproject.toml` 的 `requires-python` 设为 `>=3.9`。
+- **目标运行环境 Python 3.9**(Mac 上只有系统 3.9.6)。**每个 `.py` 模块第一行必须是 `from __future__ import annotations`**(代码用了 3.10+ 的 `X | None` 写法,延迟注解才能在 3.9 跑)。SQLModel 表模型一律用 `Optional[...]`。`pyproject.toml` 的 `requires-python` = `>=3.9`。
+- **Windows 开发机**:原先没装真 Python(`python`/`python3` 是 Microsoft Store 的 0 字节假 stub)。已用 `winget install Python.Python.3.12` 装好,虚拟环境在 `.venv/`,优先用 `py -3` 或 `.venv/Scripts/python.exe`(别直接用 `python`,可能命中 Store stub)。
+- **`start.bat` 必须是 CRLF + UTF-8 无 BOM**(LF 会让 cmd 解析错乱报一堆"不是内部命令")。已用 `.gitattributes`(`*.bat eol=crlf`)固定。
 
 ## 技术栈
 - 存储:SQLite(`data/hotwheel.db`)+ 图片文件夹(`data/images/`)
@@ -42,6 +42,17 @@
 
 ## 推荐实现顺序
 数据层 → 数据库页面 → 赛事流程(先单人后车队)→ 荣誉系统。用户要求全部做完,此为落地顺序。
+
+## 跨机同步与 git 工作流
+- 远程仓库 `origin` = https://github.com/gerye/hotwheel-GT3,在 Mac 与这台 Windows 之间同步。
+- **数据也纳入版本库**:`data/hotwheel.db`(赛车/车队/比赛/积分/MMR/赛季全在这一个文件里)与 `data/images/` 都跟踪;`.gitignore` 只排除 `*.bak` 和 SQLite 运行时临时文件(`-wal/-shm/-journal`)。`.venv/`、`pic/`、`.claude/settings.local.json` 不入库。
+- **铁律:数据库是二进制、无法合并**。务必「一台机器一次、开工先 `pull`、收工后 `push`」;两台都改了没先同步就会产生 `hotwheel.db` 冲突,只能二选一丢一边。
+- `.claude/settings.json` 配了 SessionStart 钩子,启动自动 `git pull --ff-only`。预览配置在 `.claude/launch.json`。
+
+## 技术注意点(踩过的坑)
+- **Starlette 1.x**:`TemplateResponse` 用新签名 `TemplateResponse(request, "x.html", {ctx})`,旧式 `(name, ctx)` 已失效(会报 `unhashable type: 'dict'`)。
+- **静态挂载顺序**:`/static/uploads` 必须挂在 `/static` 之前,否则上传图片 404(见 `app/main.py`)。
+- 车子图片点击放大(灯箱)由 `base.html` 全局事件委托实现,监听所有 `/static/uploads/` 图片,新增展示处自动覆盖。
 
 ## 工作流程
 - 实现前用 superpowers:writing-plans 出实现计划。

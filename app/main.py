@@ -16,10 +16,12 @@ def _startup() -> None:
 
 config.ensure_dirs()
 
-app.mount("/static", StaticFiles(directory=config.BASE_DIR / "app" / "static"),
-          name="static")
+# 注意顺序:更具体的 /static/uploads 必须挂在 /static 之前,
+# 否则 /static 会作为前缀先命中,把上传图片请求劫走导致 404。
 app.mount("/static/uploads", StaticFiles(directory=config.IMAGES_DIR),
           name="uploads")
+app.mount("/static", StaticFiles(directory=config.BASE_DIR / "app" / "static"),
+          name="static")
 
 
 @app.get("/")

@@ -38,7 +38,7 @@ def eligible_teams(session: Session, category: Category) -> list[Team]:
 @router.get("/races", response_class=HTMLResponse)
 def races_page(request: Request, session: Session = Depends(get_session)):
     races = session.exec(select(Race).order_by(Race.id.desc())).all()
-    return templates.TemplateResponse("races.html", {
+    return templates.TemplateResponse(request, "races.html", {
         "request": request, "races": races,
         "active": ssvc.get_active_season(session)})
 
@@ -55,7 +55,7 @@ def _new_race_context(request: Request, session: Session, *, category: str,
         ctx["cars"] = eligible_cars(session, cat, pro=(pro_level == "专业"))
     if error is not None:
         ctx["error"] = error
-    return templates.TemplateResponse("race_new.html", ctx)
+    return templates.TemplateResponse(request, "race_new.html", ctx)
 
 
 @router.get("/races/new", response_class=HTMLResponse)
@@ -121,7 +121,7 @@ def race_detail(race_id: int, request: Request,
     if race.status == RaceStatus.FINISHED and groups:
         totals = scoring.group_totals(T._group_results(session, groups[0].id))
         final_ranking = scoring.final_ranking(totals)
-    return templates.TemplateResponse("race_detail.html", {
+    return templates.TemplateResponse(request, "race_detail.html", {
         "request": request, "race": race, "round": rnd, "groups": view,
         "names": names, "final_ranking": final_ranking})
 
@@ -171,7 +171,7 @@ def tie_page(race_id: int, group_id: int, request: Request,
              session: Session = Depends(get_session)):
     adv = T.settle_group(session, group_id)
     names = {c.id: c.nickname for c in session.exec(select(Car)).all()}
-    return templates.TemplateResponse("race_tie.html", {
+    return templates.TemplateResponse(request, "race_tie.html", {
         "request": request, "race_id": race_id, "group_id": group_id,
         "tied": adv.tie_between, "names": names})
 

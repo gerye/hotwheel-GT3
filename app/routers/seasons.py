@@ -20,7 +20,7 @@ def wipe_all(session: Session = Depends(get_session)):
 @router.get("/seasons", response_class=HTMLResponse)
 def seasons_page(request: Request, session: Session = Depends(get_session)):
     seasons = session.exec(select(Season).order_by(Season.id.desc())).all()
-    return templates.TemplateResponse("seasons.html", {
+    return templates.TemplateResponse(request, "seasons.html", {
         "request": request, "seasons": seasons,
         "active": svc.get_active_season(session)})
 
@@ -50,5 +50,5 @@ def season_detail(season_id: int, request: Request,
     season = session.get(Season, season_id)
     board = st.team_board(session, season_id)
     races = session.exec(select(Race).where(Race.season_id == season_id)).all()
-    return templates.TemplateResponse("season_detail.html", {
+    return templates.TemplateResponse(request, "season_detail.html", {
         "request": request, "season": season, "board": board, "races": races})

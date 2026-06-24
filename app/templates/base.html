@@ -28,5 +28,26 @@
     <img src="/qr.png" alt="扫码访问" width="160" height="160" style="border-radius:8px">
     <div style="font-size:13px;margin-top:6px">{{ access_url() }}</div>
   </footer>
+
+  <!-- 点击放大:所有 /static/uploads/ 的车子图片 -->
+  <div id="lightbox"><img alt="放大图"></div>
+  <script>
+  (function () {
+    var lb = document.getElementById('lightbox');
+    var lbImg = lb.querySelector('img');
+    document.addEventListener('click', function (e) {
+      if (lb.classList.contains('open')) { lb.classList.remove('open'); return; }
+      var t = e.target;
+      if (t.tagName === 'IMG' && (t.getAttribute('src') || '').indexOf('/static/uploads/') === 0) {
+        e.preventDefault();           // 阻止外层链接跳转
+        lbImg.src = t.src;
+        lb.classList.add('open');
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') lb.classList.remove('open');
+    });
+  })();
+  </script>
 </body>
 </html>

@@ -26,9 +26,7 @@ def is_legend(session: Session, car: Car) -> bool:
     if not peers:
         return False
     ordered = sorted(peers, key=lambda c: c.historical_mmr, reverse=True)
-    cutoff = math.floor(len(ordered) * LEGEND_TOP_PCT)
-    if cutoff < 1:
-        return False
+    cutoff = max(1, math.ceil(len(ordered) * LEGEND_TOP_PCT))
     top_ids = {c.id for c in ordered[:cutoff]}
     return car.id in top_ids
 

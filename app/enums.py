@@ -38,3 +38,8 @@ class RaceStatus(str, Enum):
 class SeasonStatus(str, Enum):
     ACTIVE = "进行中"
     FINISHED = "已结束"
+
+
+class ContractType(str, Enum):
+    LONG = "长期"
+    SHORT = "短期"

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 from sqlmodel import Field, SQLModel
-from app.enums import Category, TeamType, SeasonStatus, CarStatus
+from app.enums import Category, TeamType, SeasonStatus, CarStatus, ContractType
 from app.enums import ProLevel, RaceFormat, RaceStatus
 
 
@@ -47,6 +47,7 @@ class Car(SQLModel, table=True):
     status: CarStatus = CarStatus.UNSIGNED
     season_mmr: float = 1500.0
     historical_mmr: float = 1500.0
+    contract: Optional[ContractType] = None   # 仅有车队时有意义
 
 
 class Season(SQLModel, table=True):
@@ -138,3 +139,17 @@ class TeamPointEntry(SQLModel, table=True):
     race_id: Optional[int] = Field(default=None, foreign_key="race.id")
     description: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TeamBudget(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season_id: int = Field(foreign_key="season.id")
+    team_id: int = Field(foreign_key="team.id")
+    budget: int
+
+
+class CarSalary(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    season_id: int = Field(foreign_key="season.id")
+    car_id: int = Field(foreign_key="car.id")
+    salary: int

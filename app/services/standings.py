@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlmodel import Session, select
 
-from app.config import SOLO_TEAM_POINTS, TEAM_TEAM_POINTS, INITIAL_MMR
+from app.config import INITIAL_MMR
 from app.models import Car, Team, TeamPointEntry
 
 
@@ -35,30 +35,20 @@ def _add_entry(session: Session, *, season_id: int, team_id: int, points: int,
 
 def award_solo(session: Session, *, season_id: int, race_id: int,
                ranking: list[int]) -> None:
-    """ranking: 车 id 的最终名次列表。前 3 名的车给其车队加分。"""
-    for pos, car_id in enumerate(ranking[:3], start=1):
-        car = session.get(Car, car_id)
-        if car is None or car.team_id is None:
-            continue
-        pts = SOLO_TEAM_POINTS[pos]
-        _add_entry(session, season_id=season_id, team_id=car.team_id, points=pts,
-                   source_car_id=car_id, race_id=race_id,
-                   description=f"{car.nickname} · 单人锦标赛第 {pos} 名")
-    session.commit()
+    """ranking: 车 id 的最终名次列表。前 3 名的车给其车队加分。
+
+    TODO(Task 3): 临时占位,新规则见 app/services/team_points.py。
+    """
+    pass
 
 
 def award_team(session: Session, *, season_id: int, race_id: int,
                ranking: list[int]) -> None:
-    """ranking: 车队 id 的最终名次列表。前 3 名车队加分。"""
-    for pos, team_id in enumerate(ranking[:3], start=1):
-        team = session.get(Team, team_id)
-        if team is None:
-            continue
-        pts = TEAM_TEAM_POINTS[pos]
-        _add_entry(session, season_id=season_id, team_id=team_id, points=pts,
-                   source_car_id=None, race_id=race_id,
-                   description=f"车队 · 车队锦标赛第 {pos} 名")
-    session.commit()
+    """ranking: 车队 id 的最终名次列表。前 3 名车队加分。
+
+    TODO(Task 3): 临时占位,新规则见 app/services/team_points.py。
+    """
+    pass
 
 
 def team_season_points(session: Session, team_id: int, season_id: int) -> int:

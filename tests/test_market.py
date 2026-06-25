@@ -26,3 +26,35 @@ def test_open_market_releases_short_keeps_long(session):
     assert session.get(Car, short_car.id).team_id is None           # 短期释放
     assert session.get(Car, short_car.id).status == CarStatus.UNSIGNED
     assert session.get(Car, short_car.id).contract is None
+
+
+from app.services import salary as sal, budget as bud
+
+
+def test_headroom_and_sign(session):
+    s, t, long_car, short_car = _seed(session)
+    ssvc.end_season(session, s.id)
+    market.open_market(session)             # short_car 释放
+    ref = market.reference_season(session)
+    # 自由市场签回 short_car
+    market.sign(session, short_car.id, t.id, ref.id)
+    session.expire_all()
+    assert session.get(Car, short_car.id).team_id == t.id
+    assert session.get(Car, short_car.id).status == CarStatus.ACTIVE
+    assert session.get(Car, short_car.id).contract == ContractType.SHORT
+
+
+def test_sign_blocked_when_category_full(session):
+    import pytest
+    s = ssvc.start_season(session, name="S1")
+    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
+    for i in range(2):
+        csvc.create_car(session, nickname=f"a{i}", category=Category.GT3, brand="B",
+                        casting="", description="", team_id=t.id, contract=ContractType.LONG)
+    free = csvc.create_car(session, nickname="free", category=Category.GT3, brand="B",
+                           casting="", description="", team_id=None)
+    ssvc.end_season(session, s.id)
+    market.open_market(session)
+    ref = market.reference_season(session)
+    with pytest.raises(market.MarketError):
+        market.sign(session, free.id, t.id, ref.id)     # 该类别已 2 现役

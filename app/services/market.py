@@ -30,3 +30,54 @@ def open_market(session: Session) -> None:
         car.contract = None
         session.add(car)
     session.commit()
+
+
+from app.enums import TeamType
+from app.services import salary as sal, budget as bud
+from app.config import MAX_CARS_PER_CATEGORY
+
+
+def committed_salary(session: Session, team_id: int, season_id: int) -> int:
+    cars = session.exec(select(Car).where(Car.team_id == team_id,
+                        Car.status == CarStatus.ACTIVE)).all()
+    return sum(sal.compute_salary(session, c, season_id) for c in cars)
+
+
+def headroom(session: Session, team_id: int, season_id: int) -> int:
+    team = session.get(Team, team_id)
+    return bud.compute_budget(session, team, season_id) - committed_salary(session, team_id, season_id)
+
+
+def _active_in_category(session: Session, team_id: int, category) -> int:
+    return len(session.exec(select(Car).where(
+        Car.team_id == team_id, Car.category == category,
+        Car.status == CarStatus.ACTIVE)).all())
+
+
+def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:
+    car = session.get(Car, car_id)
+    team = session.get(Team, team_id)
+    if car is None or team is None:
+        raise MarketError("赛车或车队不存在")
+    if team.type == TeamType.FACTORY and car.brand != team.brand:
+        raise MarketError(f"厂商车队「{team.name}」只能签品牌「{team.brand}」的车")
+    if _active_in_category(session, team_id, car.category) >= MAX_CARS_PER_CATEGORY:
+        raise MarketError(f"{team.name} 在 {car.category.value} 已有 2 个现役")
+    price = sal.compute_salary(session, car, season_id)
+    if price > headroom(session, team_id, season_id):
+        raise MarketError(f"预算不足:{car.nickname} 薪资 {price} > 余额 "
+                          f"{headroom(session, team_id, season_id)}")
+    car.team_id = team_id
+    car.status = CarStatus.ACTIVE
+    car.contract = ContractType.SHORT     # 自由市场签下默认短期
+    session.add(car); session.commit()
+
+
+def release(session: Session, car_id: int) -> None:
+    car = session.get(Car, car_id)
+    if car is None:
+        raise MarketError("赛车不存在")
+    car.team_id = None
+    car.status = CarStatus.UNSIGNED
+    car.contract = None
+    session.add(car); session.commit()

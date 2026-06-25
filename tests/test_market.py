@@ -95,3 +95,11 @@ def test_market_page_and_actions(engine, session):
     r = client.get("/market")
     assert r.status_code == 200 and "自由" in r.text and "预算" in r.text
     assert client.post("/market/recommend", follow_redirects=False).status_code in (302, 303)
+
+
+def test_finalize_redirects_to_seasons(engine, session):
+    ssvc.start_season(session, name="S1")
+    ssvc.end_season(session, session.exec(select(__import__('app.models', fromlist=['Season']).Season)).first().id)
+    client.post("/market/open")
+    r = client.post("/market/finalize", follow_redirects=False)
+    assert r.status_code in (302, 303) and "/seasons" in r.headers["location"]

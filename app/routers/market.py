@@ -62,3 +62,9 @@ def market_sign(car_id: int = Form(...), team_id: int = Form(...),
 def market_release(car_id: int = Form(...), session: Session = Depends(get_session)):
     market.release(session, car_id)
     return RedirectResponse("/market", status_code=303)
+
+
+@router.post("/market/finalize")
+def market_finalize(session: Session = Depends(get_session)):
+    # 阵容即当前 team_id 状态,无需额外持久化;引导去开启下一季
+    return RedirectResponse("/seasons", status_code=303)

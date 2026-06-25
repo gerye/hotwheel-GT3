@@ -1,0 +1,51 @@
+<!-- app/templates/market.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>转会市场</h2>
+  {% if not ref %}<p class="error">还没有赛季,无法转会。</p>{% else %}
+  <p><small>参照赛季:{{ ref.name }}</small></p>
+  <form method="post" action="/market/open" style="display:inline"
+        onsubmit="return confirm('开盘会释放所有短期合同车为自由身,确定?')">
+    <button class="btn">开盘(释放短期车)</button></form>
+  <form method="post" action="/market/recommend" style="display:inline">
+    <button class="btn">生成推荐阵容</button></form>
+  {% endif %}
+</div>
+
+{% for tv in teams %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between">
+    <strong>{{ tv.team.name }}</strong>
+    <span><small>预算 {{ tv.budget }} · 余额 {{ tv.headroom }}</small></span>
+  </div>
+  {% for r in tv.roster %}
+  <div class="row">
+    <span style="flex:1">{{ r.car.nickname }} <span class="tag">{{ r.car.category.value }}</span>
+      {% if r.car.contract %}<span class="tag">{{ r.car.contract.value }}</span>{% endif %}</span>
+    <span><small>薪资 {{ r.salary }}</small></span>
+    <form method="post" action="/market/release" style="display:inline">
+      <input type="hidden" name="car_id" value="{{ r.car.id }}">
+      <button class="btn">释放</button></form>
+  </div>
+  {% else %}<p><small>无现役</small></p>{% endfor %}
+</div>
+{% endfor %}
+
+<div class="card">
+  <h3>自由市场</h3>
+  {% for p in pool %}
+  <div class="row">
+    <span style="flex:1">{{ p.car.nickname }} <span class="tag">{{ p.car.category.value }}</span> · {{ p.car.brand }}</span>
+    <span><small>薪资 {{ p.salary }}</small></span>
+    <form method="post" action="/market/sign" style="display:flex;gap:4px">
+      <input type="hidden" name="car_id" value="{{ p.car.id }}">
+      <select name="team_id">
+        {% for tv in teams %}<option value="{{ tv.team.id }}">{{ tv.team.name }}</option>{% endfor %}
+      </select>
+      <button class="btn">签约</button>
+    </form>
+  </div>
+  {% else %}<p>自由市场空</p>{% endfor %}
+</div>
+{% endblock %}

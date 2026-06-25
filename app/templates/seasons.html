@@ -3,6 +3,7 @@
 {% block content %}
 <div class="card">
   <h2>赛季</h2>
+  <a class="btn" href="/market">转会市场</a>
   {% if not active %}
   <form method="post" action="/seasons" style="display:flex;gap:8px">
     <input name="name" placeholder="新赛季名称,如 2026 S1" required>

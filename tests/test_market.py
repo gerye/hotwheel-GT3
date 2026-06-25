@@ -75,3 +75,23 @@ def test_recommend_fills_partial_category(session):
     # 该队 GT3 原本 1 现役 → 推荐补到 2,签下自由车
     assert session.get(Car, free.id).team_id == t.id
     assert market._active_in_category(session, t.id, Category.GT3) == 2
+
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_market_page_and_actions(engine, session):
+    s = ssvc.start_season(session, name="S1")
+    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
+    csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
+                    casting="", description="", team_id=t.id, contract=ContractType.LONG)
+    csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
+                    casting="", description="", team_id=None)
+    ssvc.end_season(session, s.id)
+    assert client.post("/market/open", follow_redirects=False).status_code in (302, 303)
+    r = client.get("/market")
+    assert r.status_code == 200 and "自由" in r.text and "预算" in r.text
+    assert client.post("/market/recommend", follow_redirects=False).status_code in (302, 303)

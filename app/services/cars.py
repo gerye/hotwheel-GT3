@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Car, Team
-from app.enums import Category, CarStatus
+from app.enums import Category, CarStatus, ContractType
 from app.services import teams as tsvc
 
 
@@ -20,11 +20,12 @@ def _check_unique_nickname(session: Session, nickname: str,
 
 def create_car(session: Session, *, nickname: str, category: Category,
                brand: str, casting: str, description: str,
-               team_id: Optional[int], image_path: Optional[str] = None) -> Car:
+               team_id: Optional[int], image_path: Optional[str] = None,
+               contract: Optional[ContractType] = None) -> Car:
     _check_unique_nickname(session, nickname)
     car = Car(nickname=nickname, category=category, brand=brand, casting=casting,
               description=description, image_path=image_path,
-              status=CarStatus.UNSIGNED)
+              status=CarStatus.UNSIGNED, contract=contract)
     if team_id is not None:
         team = session.get(Team, team_id)
         if team is None:

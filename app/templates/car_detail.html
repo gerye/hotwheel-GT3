@@ -7,7 +7,7 @@
     {% else %}<span class="thumb" style="width:120px;height:90px"></span>{% endif %}
     <div style="flex:1">
       <h2 style="margin:0">{{ car.nickname }} <span class="tag">{{ car.category.value }}</span></h2>
-      <p><small>{{ car.casting }} · {{ car.brand }} · 车队:{{ team_name or "无车队" }}</small></p>
+      <p><small>{{ car.casting }} · {{ car.brand }} · 车队:{{ team_name or "无车队" }} · 合同:{{ car.contract.value if car.contract else "—" }}</small></p>
       <a class="btn" href="/cars/{{ car.id }}/edit">编辑</a>
       <form method="post" action="/cars/{{ car.id }}/delete" style="display:inline"
             onsubmit="return confirm('确定删除赛车「{{ car.nickname }}」吗?该操作会一并清理它的比赛与荣誉记录。')">
@@ -46,6 +46,7 @@
     <div class="stat"><div class="label">赛季 MMR</div><div class="value">{{ car.season_mmr | round | int }}</div></div>
     <div class="stat"><div class="label">{{ car.category.value }} 排名</div><div class="value">#{{ rank or "-" }}</div></div>
     <div class="stat"><div class="label">历史 MMR</div><div class="value">{{ car.historical_mmr | round | int }}</div></div>
+    <div class="stat"><div class="label">薪资</div><div class="value">{{ salary if salary is not none else "—" }}</div></div>
   </div>
   <h3>历史战绩 / 荣誉</h3>
   {% for line in honors %}<p>{{ line }}</p>{% else %}<p>暂无记录</p>{% endfor %}

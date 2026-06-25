@@ -10,8 +10,8 @@ from app import config
 from app.db import get_session
 from app.models import Team
 from urllib.parse import quote
-from app.enums import Category, CarStatus
-from app.services import cars as csvc, teams as tsvc
+from app.enums import Category, CarStatus, ContractType
+from app.services import cars as csvc, teams as tsvc, seasons as ssvc, salary as sal
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -42,6 +42,7 @@ def new_car(request: Request, session: Session = Depends(get_session)):
 def create_car(request: Request, nickname: str = Form(...), category: str = Form(...),
                brand: str = Form(""), casting: str = Form(""),
                description: str = Form(""), team_id: str = Form(""),
+               contract: str = Form(""),
                image: UploadFile = File(None),
                session: Session = Depends(get_session)):
     try:
@@ -49,7 +50,8 @@ def create_car(request: Request, nickname: str = Form(...), category: str = Form
             session, nickname=nickname, category=Category(category), brand=brand,
             casting=casting, description=description,
             team_id=int(team_id) if team_id else None,
-            image_path=_save_image(image))
+            image_path=_save_image(image),
+            contract=ContractType(contract) if contract else None)
         return RedirectResponse(f"/cars/{car.id}", status_code=303)
     except (csvc.CarValidationError, tsvc.TeamValidationError) as e:
         return templates.TemplateResponse(request, "car_form.html", {
@@ -71,12 +73,14 @@ def edit_car_form(car_id: int, request: Request,
 def edit_car(car_id: int, request: Request, nickname: str = Form(...),
              category: str = Form(...), brand: str = Form(""), casting: str = Form(""),
              description: str = Form(""), team_id: str = Form(""),
+             contract: str = Form(""),
              image: UploadFile = File(None),
              session: Session = Depends(get_session)):
     from app.models import Car
     fields = dict(nickname=nickname, category=Category(category), brand=brand,
                   casting=casting, description=description,
-                  team_id=int(team_id) if team_id else None)
+                  team_id=int(team_id) if team_id else None,
+                  contract=ContractType(contract) if contract else None)
     img = _save_image(image)
     if img:
         fields["image_path"] = img
@@ -129,6 +133,8 @@ def car_detail(car_id: int, request: Request,
     for snap in session.exec(select(CarSeasonMMR).where(
             CarSeasonMMR.car_id == car_id)).all():
         honors.append(f"赛季快照 MMR:{round(snap.mmr)}")
+    active = ssvc.get_active_season(session)
+    salary = sal.compute_salary(session, car, active.id) if active else None
     return templates.TemplateResponse(request, "car_detail.html", {
         "request": request, "car": car, "team_name": team_name,
-        "rank": rank, "honors": honors})
+        "rank": rank, "honors": honors, "salary": salary})

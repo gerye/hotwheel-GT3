@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Team
 from app.enums import TeamType
-from app.services import teams as tsvc, standings as st, seasons as ssvc
+from app.services import teams as tsvc, standings as st, seasons as ssvc, budget as bud
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -87,7 +87,9 @@ def team_detail(team_id: int, request: Request,
     sources = (st.team_point_sources(session, team_id, active.id) if active else [])
     point_sources = [f"+{e.points} {e.description}" for e in sources]
     specifics = [(c.value, team.specific_name(c)) for c in Category]
+    team_budget = bud.compute_budget(session, team, active.id) if active else None
     return templates.TemplateResponse(request, "team_detail.html", {
         "request": request, "team": team, "members": members,
         "capacity": capacity, "season_points": season_points,
-        "point_sources": point_sources, "specifics": specifics})
+        "point_sources": point_sources, "specifics": specifics,
+        "budget": team_budget})

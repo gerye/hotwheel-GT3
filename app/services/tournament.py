@@ -244,13 +244,7 @@ def advance_round(session: Session, race_id: int,
         race.status = RaceStatus.FINISHED
         session.add(race); session.commit()
         if race.pro_level == ProLevel.PRO:
-            if race.format == RaceFormat.SOLO:
-                st_svc.award_solo(session, season_id=race.season_id,
-                                  race_id=race.id, ranking=ranking)
-            else:
-                team_ranking = _team_final_ranking(session, race, groups[0])
-                st_svc.award_team(session, season_id=race.season_id,
-                                  race_id=race.id, ranking=team_ranking)
+            st_svc.award_race(session, race)
         return AdvanceResult(kind="finished", ranking=ranking)
 
     # 3) 车队锦标赛:逐组比车队总分,胜队晋级;并列则加赛 4 轮

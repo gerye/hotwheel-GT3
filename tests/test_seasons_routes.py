@@ -27,10 +27,12 @@ def test_end_season_via_post(engine, session):
 
 
 def test_season_detail_shows_team_board(engine, session):
-    from app.services import teams as tsvc, standings as st
+    from app.services import teams as tsvc
     from app.enums import TeamType
+    from app.models import TeamPointEntry
     s = svc.start_season(session, name="2026 S1")
     t = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    st.award_team(session, season_id=s.id, race_id=1, ranking=[t.id])
+    session.add(TeamPointEntry(season_id=s.id, team_id=t.id, points=10, description="测试"))
+    session.commit()
     r = client.get(f"/seasons/{s.id}")
     assert "法拉利车队" in r.text and "10" in r.text

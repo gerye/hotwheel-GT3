@@ -38,9 +38,9 @@ def test_finish_pro_solo_updates_mmr_and_team_points(session):
     assert result.kind == "finished"
     # MMR 改变
     assert session.get(Car, result.ranking[0]).season_mmr > 1500
-    # 车队积分:冠军车的车队 +5
+    # 车队积分(新规则):4 车单一决赛组、无晋级,冠军决赛圈名次1 → +4(单人赛无 ×2)
     champ = session.get(Car, result.ranking[0])
-    assert st.team_season_points(session, champ.team_id, s.id) == 5
+    assert st.team_season_points(session, champ.team_id, s.id) == 4
 
 
 def test_exhibition_race_does_not_change_mmr_or_points(session):

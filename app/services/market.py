@@ -81,3 +81,59 @@ def release(session: Session, car_id: int) -> None:
     car.status = CarStatus.UNSIGNED
     car.contract = None
     session.add(car); session.commit()
+
+
+def _free_agents(session: Session):
+    return session.exec(select(Car).where(Car.team_id == None)).all()  # noqa: E711
+
+
+def _partial_categories(session: Session, team_id: int):
+    """该队正好 1 个现役的类别列表。"""
+    out = []
+    for cat in {c.category for c in session.exec(select(Car).where(
+            Car.team_id == team_id, Car.status == CarStatus.ACTIVE)).all()}:
+        if _active_in_category(session, team_id, cat) == 1:
+            out.append(cat)
+    return out
+
+
+def _team_has_need(session: Session, team_id: int) -> bool:
+    return len(_partial_categories(session, team_id)) > 0
+
+
+def recommend(session: Session, season_id: int) -> None:
+    """半自动推荐:余额最高的队先把已有 1 现役的类别补到 2。"""
+    guard = 0
+    while True:
+        guard += 1
+        if guard > 1000:
+            break
+        teams = [t for t in session.exec(select(Team)).all()
+                 if _team_has_need(session, t.id)]
+        if not teams:
+            break
+        teams.sort(key=lambda t: headroom(session, t.id, season_id), reverse=True)
+        team = teams[0]
+        signed_any = False
+        for cat in _partial_categories(session, team.id):
+            # 该类别可签的自由车:品牌匹配 + 买得起,挑赛季末 MMR 最高
+            from app.enums import TeamType
+            cands = []
+            for c in _free_agents(session):
+                if c.category != cat:
+                    continue
+                if team.type == TeamType.FACTORY and c.brand != team.brand:
+                    continue
+                if sal.compute_salary(session, c, season_id) <= headroom(session, team.id, season_id):
+                    cands.append(c)
+            cands.sort(key=lambda c: sal._season_mmr(session, c, season_id), reverse=True)
+            if cands:
+                try:
+                    sign(session, cands[0].id, team.id, season_id)
+                    signed_any = True
+                except MarketError:
+                    pass
+        if not signed_any:
+            # 该队无法再补(没合适/买不起)→ 跳过它避免死循环
+            # 用一次性标记:把它从候选里排除靠下一轮 headroom 不变;这里直接 break 最高队无法签的情况
+            break

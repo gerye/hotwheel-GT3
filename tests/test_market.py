@@ -58,3 +58,20 @@ def test_sign_blocked_when_category_full(session):
     ref = market.reference_season(session)
     with pytest.raises(market.MarketError):
         market.sign(session, free.id, t.id, ref.id)     # 该类别已 2 现役
+
+
+def test_recommend_fills_partial_category(session):
+    s = ssvc.start_season(session, name="S1")
+    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
+    csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
+                    casting="", description="", team_id=t.id, contract=ContractType.LONG)
+    free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
+                           casting="", description="", team_id=None)
+    ssvc.end_season(session, s.id)
+    market.open_market(session)
+    ref = market.reference_season(session)
+    market.recommend(session, ref.id)
+    session.expire_all()
+    # 该队 GT3 原本 1 现役 → 推荐补到 2,签下自由车
+    assert session.get(Car, free.id).team_id == t.id
+    assert market._active_in_category(session, t.id, Category.GT3) == 2

@@ -45,7 +45,7 @@ def _team_car_counts(session: Session) -> dict[int, int]:
 @router.get("/database", response_class=HTMLResponse)
 def database(request: Request, session: Session = Depends(get_session)):
     cars = ssvc.search_cars(session, "")
-    return templates.TemplateResponse("database.html", {
+    return templates.TemplateResponse(request, "database.html", {
         "request": request, "cars": cars, "team_names": _team_names(session),
     })
 
@@ -55,7 +55,7 @@ def database_cars(request: Request, q: str = "", category: str = "",
                   session: Session = Depends(get_session)):
     cat = Category(category) if category else None
     cars = ssvc.search_cars(session, q, category=cat)
-    return templates.TemplateResponse("_car_rows.html", {
+    return templates.TemplateResponse(request, "_car_rows.html", {
         "request": request, "cars": cars, "team_names": _team_names(session),
     })
 
@@ -64,7 +64,7 @@ def database_cars(request: Request, q: str = "", category: str = "",
 def database_teams(request: Request, q: str = "",
                    session: Session = Depends(get_session)):
     teams = ssvc.search_teams(session, q)
-    return templates.TemplateResponse("database.html", {
+    return templates.TemplateResponse(request, "database.html", {
         "request": request, "cars": [], "teams": teams,
         "team_names": _team_names(session), "counts": _team_car_counts(session),
         "show_teams": True,

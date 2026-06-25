@@ -1,7 +1,19 @@
 __pycache__/
 *.pyc
 .venv/
-data/
 .pytest_cache/
 
+# 数据纳入版本库以便跨机同步(data/hotwheel.db + data/images/);
+# 但忽略备份与 SQLite 运行时临时文件
+data/*.bak
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
+
 *.egg-info/
+
+# 素材文件夹,不入库
+pic/
+
+# Claude Code: 本机专属设置不同步,共享设置在 settings.json
+.claude/settings.local.json

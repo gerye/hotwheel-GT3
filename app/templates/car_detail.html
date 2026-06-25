@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card">
   <div style="display:flex;gap:16px">
-    {% if car.image_path %}<img src="/static/uploads/{{ car.image_path }}" style="width:120px;height:90px;object-fit:cover;border-radius:8px">
+    {% if car.image_path %}<img src="/static/uploads/{{ car.image_path }}" style="height:90px;width:auto;border-radius:8px">
     {% else %}<span class="thumb" style="width:120px;height:90px"></span>{% endif %}
     <div style="flex:1">
       <h2 style="margin:0">{{ car.nickname }} <span class="tag">{{ car.category.value }}</span></h2>

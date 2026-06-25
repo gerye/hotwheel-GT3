@@ -23,7 +23,7 @@ def standings_page(request: Request, category: str = "GT3",
               reverse=True)
     active = ssvc.get_active_season(session)
     board = st.team_board(session, active.id) if active else []
-    return templates.TemplateResponse("standings.html", {
+    return templates.TemplateResponse(request, "standings.html", {
         "request": request, "cars": cars, "category": category,
         "season_mode": season_mode, "board": board,
         "use_hist": use_hist})

@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("/teams/new", response_class=HTMLResponse)
 def new_team(request: Request):
-    return templates.TemplateResponse("team_form.html", {
+    return templates.TemplateResponse(request, "team_form.html", {
         "request": request, "team": None, "action": "/teams", "error": None})
 
 
@@ -30,7 +30,7 @@ def create_team(request: Request, type: str = Form(...), brand: str = Form(""),
                                 alias_road=alias_road)
         return RedirectResponse(f"/teams/{team.id}", status_code=303)
     except tsvc.TeamValidationError as e:
-        return templates.TemplateResponse("team_form.html", {
+        return templates.TemplateResponse(request, "team_form.html", {
             "request": request, "team": None, "action": "/teams",
             "error": str(e)}, status_code=200)
 
@@ -39,7 +39,7 @@ def create_team(request: Request, type: str = Form(...), brand: str = Form(""),
 def edit_team_form(team_id: int, request: Request,
                    session: Session = Depends(get_session)):
     team = session.get(Team, team_id)
-    return templates.TemplateResponse("team_form.html", {
+    return templates.TemplateResponse(request, "team_form.html", {
         "request": request, "team": team,
         "action": f"/teams/{team_id}/edit", "error": None})
 
@@ -58,7 +58,7 @@ def edit_team(team_id: int, request: Request, type: str = Form(...),
         return RedirectResponse(f"/teams/{team_id}", status_code=303)
     except tsvc.TeamValidationError as e:
         team = session.get(Team, team_id)
-        return templates.TemplateResponse("team_form.html", {
+        return templates.TemplateResponse(request, "team_form.html", {
             "request": request, "team": team,
             "action": f"/teams/{team_id}/edit", "error": str(e)},
             status_code=200)
@@ -87,7 +87,7 @@ def team_detail(team_id: int, request: Request,
     sources = (st.team_point_sources(session, team_id, active.id) if active else [])
     point_sources = [f"+{e.points} {e.description}" for e in sources]
     specifics = [(c.value, team.specific_name(c)) for c in Category]
-    return templates.TemplateResponse("team_detail.html", {
+    return templates.TemplateResponse(request, "team_detail.html", {
         "request": request, "team": team, "members": members,
         "capacity": capacity, "season_points": season_points,
         "point_sources": point_sources, "specifics": specifics})

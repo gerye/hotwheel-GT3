@@ -33,7 +33,7 @@ def _teams(session: Session):
 
 @router.get("/cars/new", response_class=HTMLResponse)
 def new_car(request: Request, session: Session = Depends(get_session)):
-    return templates.TemplateResponse("car_form.html", {
+    return templates.TemplateResponse(request, "car_form.html", {
         "request": request, "car": None, "teams": _teams(session),
         "action": "/cars", "error": None})
 
@@ -52,7 +52,7 @@ def create_car(request: Request, nickname: str = Form(...), category: str = Form
             image_path=_save_image(image))
         return RedirectResponse(f"/cars/{car.id}", status_code=303)
     except (csvc.CarValidationError, tsvc.TeamValidationError) as e:
-        return templates.TemplateResponse("car_form.html", {
+        return templates.TemplateResponse(request, "car_form.html", {
             "request": request, "car": None, "teams": _teams(session),
             "action": "/cars", "error": str(e)}, status_code=200)
 
@@ -62,7 +62,7 @@ def edit_car_form(car_id: int, request: Request,
                   session: Session = Depends(get_session)):
     from app.models import Car
     car = session.get(Car, car_id)
-    return templates.TemplateResponse("car_form.html", {
+    return templates.TemplateResponse(request, "car_form.html", {
         "request": request, "car": car, "teams": _teams(session),
         "action": f"/cars/{car_id}/edit", "error": None})
 
@@ -85,7 +85,7 @@ def edit_car(car_id: int, request: Request, nickname: str = Form(...),
         return RedirectResponse(f"/cars/{car_id}", status_code=303)
     except (csvc.CarValidationError, tsvc.TeamValidationError) as e:
         car = session.get(Car, car_id)
-        return templates.TemplateResponse("car_form.html", {
+        return templates.TemplateResponse(request, "car_form.html", {
             "request": request, "car": car, "teams": _teams(session),
             "action": f"/cars/{car_id}/edit", "error": str(e)}, status_code=200)
 
@@ -129,6 +129,6 @@ def car_detail(car_id: int, request: Request,
     for snap in session.exec(select(CarSeasonMMR).where(
             CarSeasonMMR.car_id == car_id)).all():
         honors.append(f"赛季快照 MMR:{round(snap.mmr)}")
-    return templates.TemplateResponse("car_detail.html", {
+    return templates.TemplateResponse(request, "car_detail.html", {
         "request": request, "car": car, "team_name": team_name,
         "rank": rank, "honors": honors})

@@ -1,5 +1,5 @@
 from sqlmodel import select
-from app.enums import Category, TeamType, CarStatus, ContractType
+from app.enums import Category, TeamType, CarStatus
 from app.services import seasons as ssvc, teams as tsvc, cars as csvc, market
 from app.models import Car
 
@@ -9,10 +9,10 @@ def _seed(session):
     t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
     long_car = csvc.create_car(session, nickname="老将", category=Category.GT3, brand="B",
                                casting="", description="", team_id=t.id,
-                               contract=ContractType.LONG)
+                               signed_status=CarStatus.LONG)
     short_car = csvc.create_car(session, nickname="临时", category=Category.GT3, brand="B",
                                 casting="", description="", team_id=t.id,
-                                contract=ContractType.SHORT)
+                                signed_status=CarStatus.SHORT)
     return s, t, long_car, short_car
 
 
@@ -22,10 +22,9 @@ def test_open_market_releases_short_keeps_long(session):
     market.open_market(session)
     session.expire_all()
     assert session.get(Car, long_car.id).team_id == t.id            # 长期留任
-    assert session.get(Car, long_car.id).status == CarStatus.ACTIVE
+    assert session.get(Car, long_car.id).status == CarStatus.LONG
     assert session.get(Car, short_car.id).team_id is None           # 短期释放
     assert session.get(Car, short_car.id).status == CarStatus.UNSIGNED
-    assert session.get(Car, short_car.id).contract is None
 
 
 from app.services import salary as sal, budget as bud
@@ -40,8 +39,7 @@ def test_headroom_and_sign(session):
     market.sign(session, short_car.id, t.id, ref.id)
     session.expire_all()
     assert session.get(Car, short_car.id).team_id == t.id
-    assert session.get(Car, short_car.id).status == CarStatus.ACTIVE
-    assert session.get(Car, short_car.id).contract == ContractType.SHORT
+    assert session.get(Car, short_car.id).status == CarStatus.SHORT
 
 
 def test_sign_blocked_when_category_full(session):
@@ -50,7 +48,7 @@ def test_sign_blocked_when_category_full(session):
     t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
     for i in range(2):
         csvc.create_car(session, nickname=f"a{i}", category=Category.GT3, brand="B",
-                        casting="", description="", team_id=t.id, contract=ContractType.LONG)
+                        casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
     free = csvc.create_car(session, nickname="free", category=Category.GT3, brand="B",
                            casting="", description="", team_id=None)
     ssvc.end_season(session, s.id)
@@ -64,7 +62,7 @@ def test_recommend_fills_partial_category(session):
     s = ssvc.start_season(session, name="S1")
     t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
     csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
-                    casting="", description="", team_id=t.id, contract=ContractType.LONG)
+                    casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
     free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
                            casting="", description="", team_id=None)
     ssvc.end_season(session, s.id)
@@ -87,7 +85,7 @@ def test_market_page_and_actions(engine, session):
     s = ssvc.start_season(session, name="S1")
     t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
     csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
-                    casting="", description="", team_id=t.id, contract=ContractType.LONG)
+                    casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
     csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
                     casting="", description="", team_id=None)
     ssvc.end_season(session, s.id)
@@ -110,7 +108,7 @@ def test_factory_signs_brandless_car_keeps_brand(session):
     s = ssvc.start_season(session, name="S1")
     tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                    casting="", description="", team_id=tf.id, contract=ContractType.LONG)
+                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
     free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
                            casting="", description="", team_id=None)
     market.sign(session, free.id, tf.id, s.id)
@@ -134,7 +132,7 @@ def test_recommend_considers_brandless_for_factory(session):
     s = ssvc.start_season(session, name="S1")
     tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                    casting="", description="", team_id=tf.id, contract=ContractType.LONG)
+                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
     free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="",
                            casting="", description="", team_id=None)
     market.recommend(session, s.id)
@@ -148,7 +146,7 @@ def test_factory_team_accepts_brandless_member_on_create(session):
     tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     c = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
                         casting="", description="", team_id=tf.id)
-    assert c.team_id == tf.id and c.status == CarStatus.ACTIVE
+    assert c.team_id == tf.id and c.status.is_active
 
 
 def test_recommend_does_not_starve_lower_headroom_team(session):
@@ -157,12 +155,12 @@ def test_recommend_does_not_starve_lower_headroom_team(session):
     # A队:厂商法拉利,1 现役法拉利 GT3(便宜→余额最高),但无自由法拉利车可补
     ta = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     a = csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                        casting="", description="", team_id=ta.id, contract=ContractType.LONG)
+                        casting="", description="", team_id=ta.id, signed_status=CarStatus.LONG)
     a.season_mmr = 1400; a.historical_mmr = 1400; session.add(a); session.commit()
     # B队:独立,1 现役 GT3(余额略低)
     tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B队")
     b = csvc.create_car(session, nickname="B1", category=Category.GT3, brand="X",
-                        casting="", description="", team_id=tb.id, contract=ContractType.LONG)
+                        casting="", description="", team_id=tb.id, signed_status=CarStatus.LONG)
     b.season_mmr = 1500; b.historical_mmr = 1450; session.add(b); session.commit()
     # 自由 GT3(保时捷):A 因品牌锁不能签,B 独立能签
     free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="保时捷",

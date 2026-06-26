@@ -49,7 +49,7 @@ def test_category_capacity_enforced(session):
     t = _factory(session, "法拉利")
     for i in range(2):
         c = Car(nickname=f"红{i}", category=Category.GT3, brand="法拉利",
-                team_id=t.id, status=CarStatus.ACTIVE)
+                team_id=t.id, status=CarStatus.LONG)
         session.add(c)
     session.commit()
     third = Car(nickname="红3", category=Category.GT3, brand="法拉利")

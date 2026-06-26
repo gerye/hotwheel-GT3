@@ -23,7 +23,7 @@ def test_create_with_team_is_active(session):
     t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="队")
     c = csvc.create_car(session, nickname="现", category=Category.GT3,
                         brand="B", casting="", description="", team_id=t.id)
-    assert c.status == CarStatus.ACTIVE
+    assert c.status == CarStatus.LONG
 
 
 def test_join_team_via_update_becomes_active(session):
@@ -32,7 +32,7 @@ def test_join_team_via_update_becomes_active(session):
                         brand="B", casting="", description="", team_id=None)
     csvc.update_car(session, c.id, team_id=t.id)
     session.refresh(c)
-    assert c.status == CarStatus.ACTIVE
+    assert c.status == CarStatus.LONG
 
 
 def test_leave_team_via_update_becomes_unsigned(session):
@@ -52,15 +52,15 @@ def test_active_to_retired_then_back(session):
                         brand="B", casting="", description="", team_id=t.id)
     csvc.change_status(session, c.id, CarStatus.RETIRED)
     session.refresh(c); assert c.status == CarStatus.RETIRED
-    csvc.change_status(session, c.id, CarStatus.ACTIVE)
-    session.refresh(c); assert c.status == CarStatus.ACTIVE
+    csvc.change_status(session, c.id, CarStatus.LONG)
+    session.refresh(c); assert c.status == CarStatus.LONG
 
 
 def test_unsigned_cannot_go_active_directly(session):
     c = csvc.create_car(session, nickname="x", category=Category.GT3,
                         brand="B", casting="", description="", team_id=None)
     with pytest.raises(csvc.CarValidationError):
-        csvc.change_status(session, c.id, CarStatus.ACTIVE)
+        csvc.change_status(session, c.id, CarStatus.LONG)
 
 
 def test_unsigned_cannot_retire(session):
@@ -91,7 +91,7 @@ def test_retired_does_not_occupy_slot(session):
     # 现在可以再加一个现役(b + 新车 = 2 现役,a 退役不计)
     c = csvc.create_car(session, nickname="c", category=Category.GT3,
                         brand="法拉利", casting="", description="", team_id=t.id)
-    assert c.status == CarStatus.ACTIVE
+    assert c.status == CarStatus.LONG
 
 
 def test_active_cap_blocks_third_active(session):
@@ -114,7 +114,7 @@ def test_reactivate_blocked_when_full(session):
     csvc.create_car(session, nickname="c", category=Category.GT3,
                     brand="法拉利", casting="", description="", team_id=t.id)  # 2 现役
     with pytest.raises(tsvc.TeamValidationError):
-        csvc.change_status(session, a.id, CarStatus.ACTIVE)   # 复出受阻
+        csvc.change_status(session, a.id, CarStatus.LONG)   # 复出受阻
 
 
 # ---------- 专业赛资格仅现役 ----------
@@ -155,14 +155,14 @@ def test_migration_backfills_status_from_team():
         # 底层按枚举「名字」存储
         rows = dict(eng.connect().execute(text(
             "SELECT nickname, status FROM car")).fetchall())
-        assert rows["有队"] == "ACTIVE"
+        assert rows["有队"] == "LONG"
         assert rows["无队"] == "UNSIGNED"
         # 关键:经 ORM 读取不报 LookupError,且映射回正确枚举
         from sqlmodel import Session, select
         from app.models import Car
         with Session(eng) as s:
             got = {c.nickname: c.status for c in s.exec(select(Car)).all()}
-        assert got["有队"] == CarStatus.ACTIVE
+        assert got["有队"] == CarStatus.LONG
         assert got["无队"] == CarStatus.UNSIGNED
     finally:
         db.set_engine(None)

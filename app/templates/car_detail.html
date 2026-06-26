@@ -7,7 +7,7 @@
     {% else %}<span class="thumb" style="width:120px;height:90px"></span>{% endif %}
     <div style="flex:1">
       <h2 style="margin:0">{{ car.nickname }} <span class="tag">{{ car.category.value }}</span></h2>
-      <p><small>{{ car.casting }} · {{ car.brand }} · 车队:{{ team_name or "无车队" }} · 合同:{{ car.contract.value if car.contract else "—" }}</small></p>
+      <p><small>{{ car.casting }} · {{ car.brand }} · 车队:{{ team_name or "无车队" }} · {{ car.status.value }}</small></p>
       <a class="btn" href="/cars/{{ car.id }}/edit">编辑</a>
       <form method="post" action="/cars/{{ car.id }}/delete" style="display:inline"
             onsubmit="return confirm('确定删除赛车「{{ car.nickname }}」吗?该操作会一并清理它的比赛与荣誉记录。')">
@@ -17,7 +17,7 @@
   </div>
   <p><small>状态:</small><strong>{{ car.status.value }}</strong>
   {% set st = car.status.value %}
-  {% if st == "现役" %}
+  {% if car.status.is_active %}
     <form method="post" action="/cars/{{ car.id }}/status" style="display:inline">
       <input type="hidden" name="next" value="/cars/{{ car.id }}">
       <button class="btn" name="status" value="退役" type="submit">退役</button>
@@ -30,7 +30,11 @@
   {% elif st == "退役" %}
     <form method="post" action="/cars/{{ car.id }}/status" style="display:inline">
       <input type="hidden" name="next" value="/cars/{{ car.id }}">
-      <button class="btn" name="status" value="现役" type="submit">复出(现役)</button>
+      <button class="btn" name="status" value="长期合约" type="submit">复出(长期)</button>
+    </form>
+    <form method="post" action="/cars/{{ car.id }}/status" style="display:inline">
+      <input type="hidden" name="next" value="/cars/{{ car.id }}">
+      <button class="btn" name="status" value="短期合约" type="submit">复出(短期)</button>
     </form>
     <form method="post" action="/cars/{{ car.id }}/status" style="display:inline"
           onsubmit="return confirm('设为未签约会把它移出车队,确定吗?')">

@@ -11,7 +11,7 @@
   <form method="post" action="/cars/{{ car.id }}/status" style="margin:0">
     <input type="hidden" name="next" value="/database">
     <select name="status" onchange="this.form.submit()" style="width:auto;padding:4px">
-      {% for s in ["未签约","现役","退役"] %}
+      {% for s in ["未签约","长期合约","短期合约","退役"] %}
       <option value="{{ s }}" {{ "selected" if car.status.value == s else "" }}>{{ s }}</option>
       {% endfor %}
     </select>

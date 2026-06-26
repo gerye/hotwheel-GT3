@@ -81,6 +81,8 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     added = sync_schema(engine)
     _backfill_after_migration(engine, added)
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE car SET status='LONG' WHERE status='ACTIVE'"))
 
 
 def get_session() -> Iterator[Session]:

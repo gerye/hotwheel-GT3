@@ -24,7 +24,7 @@
   {% for r in tv.roster %}
   <div class="row">
     <span style="flex:1">{{ r.car.nickname }} <span class="tag">{{ r.car.category.value }}</span>
-      {% if r.car.contract %}<span class="tag">{{ r.car.contract.value }}</span>{% endif %}</span>
+      {% if r.car.status.is_active %}<span class="tag">{{ r.car.status.value }}</span>{% endif %}</span>
     <span><small>薪资 {{ r.salary }}</small></span>
     <form method="post" action="/market/release" style="display:inline">
       <input type="hidden" name="car_id" value="{{ r.car.id }}">

@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from sqlmodel import Session, select
 from app.models import Car, Race, RaceEntry, CarSeasonMMR
-from app.enums import ProLevel
+from app.enums import ProLevel, RaceStatus
 from app.config import (SALARY_BASE, SALARY_FLOOR, SALARY_MMR_UP, SALARY_MMR_DOWN,
                         SALARY_CHAMP, SALARY_FINALS, SALARY_LEGEND, LEGEND_TOP_PCT)
 from app.services import racestats
@@ -34,7 +34,8 @@ def is_legend(session: Session, car: Car) -> bool:
 def _season_achievements(session: Session, car: Car, season_id: int):
     champ, finals = 0, 0
     races = session.exec(select(Race).where(Race.season_id == season_id,
-                         Race.pro_level == ProLevel.PRO)).all()
+                         Race.pro_level == ProLevel.PRO,
+                         Race.status == RaceStatus.FINISHED)).all()
     for race in races:
         entry = session.exec(select(RaceEntry).where(
             RaceEntry.race_id == race.id, RaceEntry.car_id == car.id)).first()

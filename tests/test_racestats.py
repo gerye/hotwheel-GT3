@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from sqlmodel import select
-from app.enums import Category, ProLevel, RaceFormat, TeamType
+from app.enums import Category, ProLevel, RaceFormat, TeamType, RaceStatus
 from app.services import seasons as ssvc, teams as tsvc, cars as csvc, tournament as T
-from app.services import racestats
-from app.models import Race, RaceRound, Group, GroupMember, Heat
+from app.services import racestats, salary as sal
+from app.models import Race, RaceRound, Group, GroupMember, Heat, Car
 
 
 def _run_solo_6(session):
@@ -28,6 +28,33 @@ def _run_solo_6(session):
         res = T.advance_round(session, race.id, seed=2)
         if res.kind == "finished":
             return race, ids, res.ranking
+
+
+def test_unfinished_race_has_no_champion_and_no_salary_bonus(session):
+    """比赛未结束时不产生冠军(防止用第一轮某组充数,虚增薪资/预算)。"""
+    s = ssvc.start_season(session, name="S1")
+    ids = []
+    for i in range(6):
+        t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name=f"u{i}")
+        ids.append(csvc.create_car(session, nickname=f"u{i}", category=Category.GT3,
+                   brand="B", casting="", description="", team_id=t.id).id)
+    race = T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                         format=RaceFormat.SOLO, car_ids=ids, seed=1)
+    # 只录第一轮所有小组,不调用 advance_round → 比赛仍进行中
+    r1 = session.exec(select(RaceRound).where(RaceRound.race_id == race.id)).first()
+    for g in session.exec(select(Group).where(Group.round_id == r1.id)).all():
+        members = [m.car_id for m in session.exec(select(GroupMember)
+                   .where(GroupMember.group_id == g.id)).all()]
+        for h in session.exec(select(Heat).where(Heat.group_id == g.id)).all():
+            T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(members)})
+    assert session.get(Race, race.id).status != RaceStatus.FINISHED
+    ach = racestats.car_achievements(session, race.id)
+    assert all(not v["champion"] for v in ach.values())
+    assert racestats.final_ranking(session, race.id) == []
+    # 薪资统计:本赛季冠军/决赛圈次数都应为 0
+    for cid in ids:
+        champ, finals = sal._season_achievements(session, session.get(Car, cid), s.id)
+        assert champ == 0 and finals == 0
 
 
 def test_advancements_and_champion(session):

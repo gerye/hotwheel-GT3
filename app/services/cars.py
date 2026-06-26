@@ -119,30 +119,29 @@ def update_car(session: Session, car_id: int, **fields) -> Car:
 
 
 def change_status(session: Session, car_id: int, new_status: CarStatus) -> Car:
-    """按状态机切换赛车状态(含条件校验)。"""
+    """按状态机切换签约状态(含条件校验)。"""
     car = session.get(Car, car_id)
     if car is None:
         raise CarValidationError("赛车不存在")
     if new_status == car.status:
         return car
     if new_status == CarStatus.UNSIGNED:
-        # 任意状态 → 未签约 = 移出车队
         car.team_id = None
         car.status = CarStatus.UNSIGNED
     elif new_status == CarStatus.RETIRED:
-        if car.status != CarStatus.ACTIVE:
-            raise CarValidationError("只有现役赛车才能退役")
+        if not car.status.is_active:
+            raise CarValidationError("只有现役(长期/短期)赛车才能退役")
         car.status = CarStatus.RETIRED
-    elif new_status == CarStatus.ACTIVE:
+    elif new_status in (CarStatus.LONG, CarStatus.SHORT):
         if car.status == CarStatus.UNSIGNED:
-            raise CarValidationError("不能直接从未签约变为现役,请先在「编辑」里加入车队")
-        # 退役 → 复出:需车队现役名额未满
+            raise CarValidationError("不能直接签约,请先在「编辑」里加入车队")
         team = session.get(Team, car.team_id) if car.team_id else None
         if team is None:
-            raise CarValidationError("该赛车没有车队,无法复出")
-        tsvc.check_active_capacity(session, team=team, category=car.category,
-                                   exclude_car_id=car.id)
-        car.status = CarStatus.ACTIVE
+            raise CarValidationError("该赛车没有车队")
+        if car.status == CarStatus.RETIRED:        # 复出 → 需现役名额未满
+            tsvc.check_active_capacity(session, team=team, category=car.category,
+                                       exclude_car_id=car.id)
+        car.status = new_status                     # 长↔短 或 复出落具体合约
     session.add(car)
     session.commit()
     session.refresh(car)

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-  <h2>并列,需要 1V1</h2>
-  <p>以下赛车总分并列,争夺最后一个晋级名额,请选择本场 1V1 的胜者:</p>
+  <h2>并列,需要裁决</h2>
+  <p>以下赛车总分并列,请从中选出 <strong>{{ slots }}</strong> 名晋级者:</p>
   <form method="post" action="/races/{{ race_id }}/tie/{{ group_id }}">
     {% for cid in tied %}
-    <label style="display:flex;gap:8px"><input type="radio" name="winner_car_id" value="{{ cid }}" style="width:auto" required> {{ names[cid] }}</label>
+    <label style="display:flex;gap:8px"><input type="checkbox" name="winner_car_id" value="{{ cid }}" style="width:auto"> {{ names[cid] }}</label>
     {% endfor %}
-    <div style="margin-top:12px"><button class="btn">确定胜者</button></div>
+    <div style="margin-top:12px"><button class="btn">确定晋级者({{ slots }} 名)</button></div>
   </form>
 </div>
 {% endblock %}

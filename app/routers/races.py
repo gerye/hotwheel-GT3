@@ -170,14 +170,26 @@ def advance(race_id: int, request: Request,
 def tie_page(race_id: int, group_id: int, request: Request,
              session: Session = Depends(get_session)):
     adv = T.settle_group(session, group_id)
+    if adv.tie_between is None:          # 已无需裁决(或已裁决)
+        return RedirectResponse(f"/races/{race_id}", status_code=303)
     names = {c.id: c.nickname for c in session.exec(select(Car)).all()}
     return templates.TemplateResponse(request, "race_tie.html", {
         "request": request, "race_id": race_id, "group_id": group_id,
-        "tied": adv.tie_between, "names": names})
+        "tied": adv.tie_between, "slots": adv.slots, "names": names})
 
 
 @router.post("/races/{race_id}/tie/{group_id}")
-def resolve_tie(race_id: int, group_id: int, winner_car_id: int = Form(...),
-                session: Session = Depends(get_session)):
-    T.resolve_tie(session, group_id, winner_car_id=winner_car_id)
+async def resolve_tie(race_id: int, group_id: int, request: Request,
+                      session: Session = Depends(get_session)):
+    from urllib.parse import quote
+    form = await request.form()
+    winner_ids = [int(v) for v in form.getlist("winner_car_id")]
+    totals = scoring.group_totals(T._group_results(session, group_id))
+    adv = scoring.resolve_advancement(totals)
+    valid = set(adv.tie_between or [])
+    if len(winner_ids) != adv.slots or not set(winner_ids).issubset(valid):
+        msg = f"请恰好选择 {adv.slots} 名晋级者。"
+        return RedirectResponse(f"/races/{race_id}/tie/{group_id}?err={quote(msg)}",
+                                status_code=303)
+    T.resolve_tie(session, group_id, winner_car_ids=winner_ids)
     return RedirectResponse(f"/races/{race_id}", status_code=303)

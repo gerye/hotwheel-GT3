@@ -127,6 +127,7 @@ class TieBreak(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     group_id: int = Field(foreign_key="group.id")
     winner_car_id: Optional[int] = Field(default=None, foreign_key="car.id")
+    winner_car_ids: Optional[str] = Field(default=None)  # 多名额并列:逗号分隔的晋级车 id
     winner_team_id: Optional[int] = Field(default=None, foreign_key="team.id")
 
 

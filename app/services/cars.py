@@ -61,10 +61,20 @@ def delete_car(session: Session, car_id: int) -> None:
             TeamPointEntry.source_car_id == car_id)).all():
         r.source_car_id = None
         session.add(r)
-    for r in session.exec(select(TieBreak).where(
-            TieBreak.winner_car_id == car_id)).all():
-        r.winner_car_id = None
-        session.add(r)
+    for r in session.exec(select(TieBreak)).all():
+        changed = False
+        if r.winner_car_id == car_id:
+            r.winner_car_id = None
+            changed = True
+        if r.winner_car_ids:
+            kept = [x for x in r.winner_car_ids.split(",")
+                    if x.strip() and int(x) != car_id]
+            new_val = ",".join(kept) or None
+            if new_val != r.winner_car_ids:
+                r.winner_car_ids = new_val
+                changed = True
+        if changed:
+            session.add(r)
     session.delete(car)
     session.commit()
 

@@ -169,9 +169,40 @@ def test_group_tie_needs_decision_then_resolved(session):
     adv = T.settle_group(session, grp.id)
     assert adv.advancers is None
     assert set(adv.tie_between) == {cars[1], cars[2]}
-    T.resolve_tie(session, grp.id, winner_car_id=cars[2])
+    assert adv.slots == 1
+    T.resolve_tie(session, grp.id, winner_car_ids=[cars[2]])
     adv2 = T.settle_group(session, grp.id)
     assert adv2.advancers == [cars[0], cars[2]]
+
+
+def test_three_way_tie_advances_two(session):
+    """第 1 名也并列时,需选出 2 名晋级者(回归:曾只晋级 1 名导致少 1 车)。"""
+    ssvc.start_season(session, name="2026 S1")
+    cars = _make_cars(session, 4)
+    race = T.create_race(session, category=Category.GT3, pro_level=ProLevel.PRO,
+                         format=RaceFormat.SOLO, car_ids=cars, seed=1)
+    grp = session.exec(select(Group)).first()
+    members = [m.car_id for m in session.exec(select(GroupMember)
+               .where(GroupMember.group_id == grp.id)).all()]
+    a, b, c, d = members
+    heats = sorted(session.exec(select(Heat).where(Heat.group_id == grp.id)).all(),
+                   key=lambda h: h.number)
+    # a/b/c 各得一次第1、第2、第3(各 10 分),d 三场未完赛、末场全员未完赛 → d=0
+    plans = [
+        ({a: 1, b: 2, c: 3}, {d}),
+        ({a: 3, b: 1, c: 2}, {d}),
+        ({a: 2, b: 3, c: 1}, {d}),
+        ({}, {a, b, c, d}),
+    ]
+    for h, (ranks, dnf) in zip(heats, plans):
+        T.record_heat(session, h.id, ranks=ranks, dnf=dnf)
+    adv = T.settle_group(session, grp.id)
+    assert adv.advancers is None
+    assert set(adv.tie_between) == {a, b, c}
+    assert adv.slots == 2
+    T.resolve_tie(session, grp.id, winner_car_ids=[a, b])
+    adv2 = T.settle_group(session, grp.id)
+    assert set(adv2.advancers) == {a, b}
 
 
 def test_advance_to_next_round_until_final(session):

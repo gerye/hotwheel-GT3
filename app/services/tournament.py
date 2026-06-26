@@ -175,25 +175,38 @@ def group_recorded(session: Session, group_id: int) -> bool:
     return all(h.recorded for h in heats)
 
 
+def _tie_winners(tb: Optional[TieBreak]) -> list[int]:
+    """从裁决记录里取出晋级车 id 列表(兼容旧的单胜者字段)。"""
+    if tb is None:
+        return []
+    if tb.winner_car_ids:
+        return [int(x) for x in tb.winner_car_ids.split(",") if x.strip()]
+    if tb.winner_car_id is not None:
+        return [tb.winner_car_id]
+    return []
+
+
 def settle_group(session: Session, group_id: int) -> scoring.Advancement:
-    """返回晋级判定;若存在已裁决的 1V1,则把胜者并入晋级。"""
+    """返回晋级判定;若并列已裁决(选满空出的名额数),则把晋级者并入。"""
     totals = scoring.group_totals(_group_results(session, group_id))
     adv = scoring.resolve_advancement(totals)
     if adv.tie_between is not None:
         tb = session.exec(select(TieBreak)
                           .where(TieBreak.group_id == group_id)).first()
-        if tb is not None and tb.winner_car_id is not None:
+        winners = _tie_winners(tb)
+        if winners and len(winners) == adv.slots:
             adv = scoring.Advancement(
-                advancers=adv.guaranteed + [tb.winner_car_id],
+                advancers=adv.guaranteed + winners,
                 guaranteed=adv.guaranteed, tie_between=None)
     return adv
 
 
-def resolve_tie(session: Session, group_id: int, *, winner_car_id: int) -> None:
+def resolve_tie(session: Session, group_id: int, *, winner_car_ids: list[int]) -> None:
     tb = session.exec(select(TieBreak).where(TieBreak.group_id == group_id)).first()
     if tb is None:
         tb = TieBreak(group_id=group_id)
-    tb.winner_car_id = winner_car_id
+    tb.winner_car_ids = ",".join(str(c) for c in winner_car_ids)
+    tb.winner_car_id = winner_car_ids[0] if len(winner_car_ids) == 1 else None
     session.add(tb); session.commit()
 
 

@@ -59,6 +59,8 @@ def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:
     team = session.get(Team, team_id)
     if car is None or team is None:
         raise MarketError("赛车或车队不存在")
+    if car.team_id is not None:
+        raise MarketError(f"{car.nickname} 已属于某车队,请先释放再签约")
     if team.type == TeamType.FACTORY and car.brand != team.brand:
         raise MarketError(f"厂商车队「{team.name}」只能签品牌「{team.brand}」的车")
     if _active_in_category(session, team_id, car.category) >= MAX_CARS_PER_CATEGORY:
@@ -102,14 +104,16 @@ def _team_has_need(session: Session, team_id: int) -> bool:
 
 
 def recommend(session: Session, season_id: int) -> None:
-    """半自动推荐:余额最高的队先把已有 1 现役的类别补到 2。"""
+    """半自动推荐:每轮取余额最高的队,把它已有 1 现役的类别补到 2;
+    某队这轮补不动就把它移出候选(不再阻塞别的队),直到没人能补。"""
+    blocked: set[int] = set()
     guard = 0
     while True:
         guard += 1
         if guard > 1000:
             break
         teams = [t for t in session.exec(select(Team)).all()
-                 if _team_has_need(session, t.id)]
+                 if t.id not in blocked and _team_has_need(session, t.id)]
         if not teams:
             break
         teams.sort(key=lambda t: headroom(session, t.id, season_id), reverse=True)
@@ -117,7 +121,6 @@ def recommend(session: Session, season_id: int) -> None:
         signed_any = False
         for cat in _partial_categories(session, team.id):
             # 该类别可签的自由车:品牌匹配 + 买得起,挑赛季末 MMR 最高
-            from app.enums import TeamType
             cands = []
             for c in _free_agents(session):
                 if c.category != cat:
@@ -134,6 +137,4 @@ def recommend(session: Session, season_id: int) -> None:
                 except MarketError:
                     pass
         if not signed_any:
-            # 该队无法再补(没合适/买不起)→ 跳过它避免死循环
-            # 用一次性标记:把它从候选里排除靠下一轮 headroom 不变;这里直接 break 最高队无法签的情况
-            break
+            blocked.add(team.id)   # 这轮补不动 → 移出候选,让其它队继续

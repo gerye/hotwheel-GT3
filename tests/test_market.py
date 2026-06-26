@@ -103,3 +103,28 @@ def test_finalize_redirects_to_seasons(engine, session):
     client.post("/market/open")
     r = client.post("/market/finalize", follow_redirects=False)
     assert r.status_code in (302, 303) and "/seasons" in r.headers["location"]
+
+
+def test_recommend_does_not_starve_lower_headroom_team(session):
+    from app.models import Car
+    s = ssvc.start_season(session, name="S1")
+    # A队:厂商法拉利,1 现役法拉利 GT3(便宜→余额最高),但无自由法拉利车可补
+    ta = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    a = csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
+                        casting="", description="", team_id=ta.id, contract=ContractType.LONG)
+    a.season_mmr = 1400; a.historical_mmr = 1400; session.add(a); session.commit()
+    # B队:独立,1 现役 GT3(余额略低)
+    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B队")
+    b = csvc.create_car(session, nickname="B1", category=Category.GT3, brand="X",
+                        casting="", description="", team_id=tb.id, contract=ContractType.LONG)
+    b.season_mmr = 1500; b.historical_mmr = 1450; session.add(b); session.commit()
+    # 自由 GT3(保时捷):A 因品牌锁不能签,B 独立能签
+    free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="保时捷",
+                           casting="", description="", team_id=None)
+    free.season_mmr = 1500; free.historical_mmr = 1600; session.add(free); session.commit()
+    market.recommend(session, s.id)
+    session.expire_all()
+    # A 补不动不应阻塞 B:低余额的 B 队应补到 2
+    assert session.get(Car, free.id).team_id == tb.id
+    assert market._active_in_category(session, tb.id, Category.GT3) == 2
+    assert market._active_in_category(session, ta.id, Category.GT3) == 1

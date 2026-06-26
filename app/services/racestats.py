@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from sqlmodel import Session, select
-from app.models import RaceRound, Group, GroupMember, HeatResult, Heat, Race
-from app.enums import RaceFormat
+from app.models import RaceRound, Group, GroupMember, HeatResult, Heat
 from app.services import scoring
 
 

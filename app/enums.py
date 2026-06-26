@@ -11,8 +11,16 @@ class Category(str, Enum):
 
 class CarStatus(str, Enum):
     UNSIGNED = "未签约"
-    ACTIVE = "现役"
+    LONG = "长期合约"
+    SHORT = "短期合约"
     RETIRED = "退役"
+
+    @property
+    def is_active(self) -> bool:
+        return self in (CarStatus.LONG, CarStatus.SHORT)
+
+
+ACTIVE_STATUSES = (CarStatus.LONG, CarStatus.SHORT)
 
 
 class TeamType(str, Enum):
@@ -40,6 +48,3 @@ class SeasonStatus(str, Enum):
     FINISHED = "已结束"
 
 
-class ContractType(str, Enum):
-    LONG = "长期"
-    SHORT = "短期"

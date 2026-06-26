@@ -11,6 +11,11 @@ class TeamValidationError(Exception):
     pass
 
 
+def is_brandless(brand: Optional[str]) -> bool:
+    """品牌为空或「无」→ 视为无品牌:可被任意厂商车队签约/考虑,品牌保持不变。"""
+    return not brand or brand.strip() in ("", "无")
+
+
 def _apply_aliases(team: Team, alias_f1: Optional[str], alias_gt3: Optional[str],
                    alias_road: Optional[str]) -> None:
     team.alias_f1 = alias_f1 or None
@@ -48,7 +53,8 @@ def update_team(session: Session, team_id: int, *, type: TeamType,
     if type == TeamType.FACTORY:
         if not brand:
             raise TeamValidationError("厂商车队必须填写品牌")
-        mismatch = [c for c in members if c.brand != brand]
+        mismatch = [c for c in members
+                    if not is_brandless(c.brand) and c.brand != brand]
         if mismatch:
             names = "、".join(c.nickname for c in mismatch)
             raise TeamValidationError(
@@ -117,8 +123,9 @@ def check_active_capacity(session: Session, *, team: Team, category: Category,
 
 def check_can_assign(session: Session, *, car: Car, team: Team) -> None:
     """把 car 加入 team(成为现役)前的校验。"""
-    if team.type == TeamType.FACTORY and car.brand != team.brand:
+    if (team.type == TeamType.FACTORY and not is_brandless(car.brand)
+            and car.brand != team.brand):
         raise TeamValidationError(
-            f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」的赛车")
+            f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」或无品牌的赛车")
     check_active_capacity(session, team=team, category=car.category,
                           exclude_car_id=car.id)

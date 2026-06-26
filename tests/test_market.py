@@ -105,6 +105,52 @@ def test_finalize_redirects_to_seasons(engine, session):
     assert r.status_code in (302, 303) and "/seasons" in r.headers["location"]
 
 
+def test_factory_signs_brandless_car_keeps_brand(session):
+    """品牌为「无」的车可被厂商队签约,签约后品牌保持「无」。"""
+    s = ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
+                    casting="", description="", team_id=tf.id, contract=ContractType.LONG)
+    free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
+                           casting="", description="", team_id=None)
+    market.sign(session, free.id, tf.id, s.id)
+    session.expire_all()
+    assert session.get(Car, free.id).team_id == tf.id
+    assert session.get(Car, free.id).brand == "无"          # 品牌不变
+
+
+def test_factory_still_rejects_other_brand(session):
+    import pytest
+    s = ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    free = csvc.create_car(session, nickname="保时捷车", category=Category.GT3,
+                           brand="保时捷", casting="", description="", team_id=None)
+    with pytest.raises(market.MarketError):
+        market.sign(session, free.id, tf.id, s.id)          # 有品牌且不符 → 仍拒绝
+
+
+def test_recommend_considers_brandless_for_factory(session):
+    """转会推荐里,厂商队应把无品牌(空)自由车纳入考虑并签下。"""
+    s = ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
+                    casting="", description="", team_id=tf.id, contract=ContractType.LONG)
+    free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="",
+                           casting="", description="", team_id=None)
+    market.recommend(session, s.id)
+    session.expire_all()
+    assert session.get(Car, free.id).team_id == tf.id
+
+
+def test_factory_team_accepts_brandless_member_on_create(session):
+    """直接把无品牌车建进厂商队(走 check_can_assign)应通过。"""
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    c = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
+                        casting="", description="", team_id=tf.id)
+    assert c.team_id == tf.id and c.status == CarStatus.ACTIVE
+
+
 def test_recommend_does_not_starve_lower_headroom_team(session):
     from app.models import Car
     s = ssvc.start_season(session, name="S1")

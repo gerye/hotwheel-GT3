@@ -33,7 +33,7 @@ def open_market(session: Session) -> None:
 
 
 from app.enums import TeamType
-from app.services import salary as sal, budget as bud
+from app.services import salary as sal, budget as bud, teams as tsvc
 from app.config import MAX_CARS_PER_CATEGORY
 
 
@@ -61,8 +61,9 @@ def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:
         raise MarketError("赛车或车队不存在")
     if car.team_id is not None:
         raise MarketError(f"{car.nickname} 已属于某车队,请先释放再签约")
-    if team.type == TeamType.FACTORY and car.brand != team.brand:
-        raise MarketError(f"厂商车队「{team.name}」只能签品牌「{team.brand}」的车")
+    if (team.type == TeamType.FACTORY and not tsvc.is_brandless(car.brand)
+            and car.brand != team.brand):
+        raise MarketError(f"厂商车队「{team.name}」只能签品牌「{team.brand}」或无品牌的车")
     if _active_in_category(session, team_id, car.category) >= MAX_CARS_PER_CATEGORY:
         raise MarketError(f"{team.name} 在 {car.category.value} 已有 2 个现役")
     price = sal.compute_salary(session, car, season_id)
@@ -125,7 +126,9 @@ def recommend(session: Session, season_id: int) -> None:
             for c in _free_agents(session):
                 if c.category != cat:
                     continue
-                if team.type == TeamType.FACTORY and c.brand != team.brand:
+                if (team.type == TeamType.FACTORY
+                        and not tsvc.is_brandless(c.brand)
+                        and c.brand != team.brand):
                     continue
                 if sal.compute_salary(session, c, season_id) <= headroom(session, team.id, season_id):
                     cands.append(c)

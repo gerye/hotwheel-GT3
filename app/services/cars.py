@@ -106,9 +106,11 @@ def update_car(session: Session, car_id: int, **fields) -> Car:
             # 已是现役/退役:现役换队仍要校验名额,退役不占名额
             if car.status == CarStatus.ACTIVE:
                 tsvc.check_can_assign(session, car=car, team=team)
-            elif team.type == tsvc.TeamType.FACTORY and car.brand != team.brand:
+            elif (team.type == tsvc.TeamType.FACTORY
+                  and not tsvc.is_brandless(car.brand)
+                  and car.brand != team.brand):
                 raise tsvc.TeamValidationError(
-                    f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」的赛车")
+                    f"厂商车队「{team.name}」只能加入品牌为「{team.brand}」或无品牌的赛车")
             car.team_id = new_team_id
     session.add(car)
     session.commit()

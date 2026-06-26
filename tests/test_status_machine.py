@@ -38,13 +38,14 @@ def test_unsigned_cannot_sign_directly(session):
 
 def test_comeback_blocked_when_full(session):
     t = _team(session)
-    for i in range(2):
-        csvc.create_car(session, nickname=f"x{i}", category=Category.GT3, brand="B",
-                        casting="", description="", team_id=t.id,
-                        signed_status=CarStatus.LONG)
+    # 先建一辆并退役它(腾出名额),再填满 2 个现役,最后让它复出 → 应被名额拦截
     r = csvc.create_car(session, nickname="r", category=Category.GT3, brand="B",
                         casting="", description="", team_id=t.id,
                         signed_status=CarStatus.LONG)
-    csvc.change_status(session, r.id, CarStatus.RETIRED)   # 现 2 现役
+    csvc.change_status(session, r.id, CarStatus.RETIRED)   # r 退役,腾出名额
+    for i in range(2):
+        csvc.create_car(session, nickname=f"x{i}", category=Category.GT3, brand="B",
+                        casting="", description="", team_id=t.id,
+                        signed_status=CarStatus.LONG)       # 2 个现役占满
     with pytest.raises(tsvc.TeamValidationError):
         csvc.change_status(session, r.id, CarStatus.LONG)  # 名额满,复出失败

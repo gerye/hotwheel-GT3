@@ -10,7 +10,7 @@ from app import config
 from app.db import get_session
 from app.models import Team
 from urllib.parse import quote
-from app.enums import Category, CarStatus, ContractType
+from app.enums import Category, CarStatus
 from app.services import cars as csvc, teams as tsvc, seasons as ssvc, salary as sal
 from app.routers.pages import templates
 
@@ -25,6 +25,10 @@ def _save_image(image: Optional[UploadFile]) -> Optional[str]:
     dest = config.IMAGES_DIR / fname
     dest.write_bytes(image.file.read())
     return fname
+
+
+def _signed_status(contract: str) -> CarStatus:
+    return CarStatus.SHORT if contract == "短期" else CarStatus.LONG
 
 
 def _teams(session: Session):
@@ -51,7 +55,7 @@ def create_car(request: Request, nickname: str = Form(...), category: str = Form
             casting=casting, description=description,
             team_id=int(team_id) if team_id else None,
             image_path=_save_image(image),
-            contract=ContractType(contract) if contract else None)
+            signed_status=_signed_status(contract))
         return RedirectResponse(f"/cars/{car.id}", status_code=303)
     except (csvc.CarValidationError, tsvc.TeamValidationError) as e:
         return templates.TemplateResponse(request, "car_form.html", {
@@ -80,7 +84,7 @@ def edit_car(car_id: int, request: Request, nickname: str = Form(...),
     fields = dict(nickname=nickname, category=Category(category), brand=brand,
                   casting=casting, description=description,
                   team_id=int(team_id) if team_id else None,
-                  contract=ContractType(contract) if contract else None)
+                  signed_status=_signed_status(contract))
     img = _save_image(image)
     if img:
         fields["image_path"] = img

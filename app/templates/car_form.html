@@ -24,11 +24,10 @@
       <option value="{{ t.id }}" {{ "selected" if car and car.team_id==t.id else "" }}>{{ t.name }}</option>
       {% endfor %}
     </select>
-    <label>合同(有车队时有效)</label>
+    <label>合约(有车队时生效)</label>
     <select name="contract">
-      <option value="" {{ "selected" if not (car and car.contract) else "" }}>—(短期默认)</option>
-      <option value="长期" {{ "selected" if car and car.contract and car.contract.value=="长期" else "" }}>长期</option>
-      <option value="短期" {{ "selected" if car and car.contract and car.contract.value=="短期" else "" }}>短期</option>
+      <option value="长期" {{ "selected" if not car or car.status.value != "短期合约" else "" }}>长期</option>
+      <option value="短期" {{ "selected" if car and car.status.value == "短期合约" else "" }}>短期</option>
     </select>
     <label>叙述</label>
     <textarea name="description" rows="3">{{ car.description if car else "" }}</textarea>

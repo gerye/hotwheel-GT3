@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlmodel import Session, select
 from app.db import get_session
 from app.models import Team, Car
-from app.enums import CarStatus
+from app.enums import CarStatus, ACTIVE_STATUSES
 from app.services import market, salary as sal, budget as bud
 from app.routers.pages import templates
 
@@ -20,7 +20,7 @@ def market_page(request: Request, session: Session = Depends(get_session)):
     if ref is not None:
         for t in session.exec(select(Team)).all():
             roster = session.exec(select(Car).where(Car.team_id == t.id,
-                     Car.status == CarStatus.ACTIVE)).all()
+                     Car.status.in_(ACTIVE_STATUSES))).all()
             teams_view.append({
                 "team": t,
                 "budget": bud.compute_budget(session, t, ref.id),

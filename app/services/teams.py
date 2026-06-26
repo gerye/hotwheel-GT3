@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Team, Car
-from app.enums import TeamType, Category, CarStatus
+from app.enums import TeamType, Category, CarStatus, ACTIVE_STATUSES
 from app.config import MAX_CARS_PER_CATEGORY
 
 
@@ -107,7 +107,7 @@ def active_count(session: Session, team_id: int, category: Category,
     """车队在某类别下的现役车手数(退役不计)。"""
     rows = session.exec(
         select(Car).where(Car.team_id == team_id, Car.category == category,
-                          Car.status == CarStatus.ACTIVE)
+                          Car.status.in_(ACTIVE_STATUSES))
     ).all()
     return len([c for c in rows if c.id != exclude_car_id])
 

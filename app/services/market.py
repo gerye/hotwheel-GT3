@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Car, Team, Season
-from app.enums import CarStatus, ContractType, SeasonStatus
+from app.enums import CarStatus, SeasonStatus, ACTIVE_STATUSES
 from app.services import market_snapshot, seasons as ssvc
 
 
@@ -24,10 +24,9 @@ def open_market(session: Session) -> None:
     if ref is not None:
         market_snapshot.snapshot_season(session, ref.id)
     for car in session.exec(select(Car).where(
-            Car.contract == ContractType.SHORT)).all():
+            Car.status == CarStatus.SHORT)).all():
         car.team_id = None
         car.status = CarStatus.UNSIGNED
-        car.contract = None
         session.add(car)
     session.commit()
 
@@ -39,7 +38,7 @@ from app.config import MAX_CARS_PER_CATEGORY
 
 def committed_salary(session: Session, team_id: int, season_id: int) -> int:
     cars = session.exec(select(Car).where(Car.team_id == team_id,
-                        Car.status == CarStatus.ACTIVE)).all()
+                        Car.status.in_(ACTIVE_STATUSES))).all()
     return sum(sal.compute_salary(session, c, season_id) for c in cars)
 
 
@@ -51,7 +50,7 @@ def headroom(session: Session, team_id: int, season_id: int) -> int:
 def _active_in_category(session: Session, team_id: int, category) -> int:
     return len(session.exec(select(Car).where(
         Car.team_id == team_id, Car.category == category,
-        Car.status == CarStatus.ACTIVE)).all())
+        Car.status.in_(ACTIVE_STATUSES))).all())
 
 
 def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:
@@ -71,8 +70,7 @@ def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:
         raise MarketError(f"预算不足:{car.nickname} 薪资 {price} > 余额 "
                           f"{headroom(session, team_id, season_id)}")
     car.team_id = team_id
-    car.status = CarStatus.ACTIVE
-    car.contract = ContractType.SHORT     # 自由市场签下默认短期
+    car.status = CarStatus.SHORT          # 自由市场签下默认短期合约
     session.add(car); session.commit()
 
 
@@ -82,7 +80,6 @@ def release(session: Session, car_id: int) -> None:
         raise MarketError("赛车不存在")
     car.team_id = None
     car.status = CarStatus.UNSIGNED
-    car.contract = None
     session.add(car); session.commit()
 
 
@@ -94,7 +91,7 @@ def _partial_categories(session: Session, team_id: int):
     """该队正好 1 个现役的类别列表。"""
     out = []
     for cat in {c.category for c in session.exec(select(Car).where(
-            Car.team_id == team_id, Car.status == CarStatus.ACTIVE)).all()}:
+            Car.team_id == team_id, Car.status.in_(ACTIVE_STATUSES))).all()}:
         if _active_in_category(session, team_id, cat) == 1:
             out.append(cat)
     return out

@@ -7,6 +7,7 @@ from app.db import get_session
 from app.models import Team
 from app.enums import TeamType
 from app.services import teams as tsvc, standings as st, seasons as ssvc, budget as bud
+from app.services import market
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -87,9 +88,16 @@ def team_detail(team_id: int, request: Request,
     sources = (st.team_point_sources(session, team_id, active.id) if active else [])
     point_sources = [f"+{e.points} {e.description}" for e in sources]
     specifics = [(c.value, team.specific_name(c)) for c in Category]
-    team_budget = bud.compute_budget(session, team, active.id) if active else None
+    # 下赛季预计:用进行中赛季实时推算;赛季间(无进行中)用最近已结束赛季
+    proj = active or market.reference_season(session)
+    if proj:
+        team_budget = bud.compute_budget(session, team, proj.id)
+        committed = market.committed_salary(session, team.id, proj.id)
+        headroom = team_budget - committed
+    else:
+        team_budget = committed = headroom = None
     return templates.TemplateResponse(request, "team_detail.html", {
         "request": request, "team": team, "members": members,
         "capacity": capacity, "season_points": season_points,
         "point_sources": point_sources, "specifics": specifics,
-        "budget": team_budget})
+        "budget": team_budget, "committed": committed, "headroom": headroom})

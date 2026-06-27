@@ -50,7 +50,7 @@
     <div class="stat"><div class="label">赛季 MMR</div><div class="value">{{ car.season_mmr | round | int }}</div></div>
     <div class="stat"><div class="label">{{ car.category.value }} 排名</div><div class="value">#{{ rank or "-" }}</div></div>
     <div class="stat"><div class="label">历史 MMR</div><div class="value">{{ car.historical_mmr | round | int }}</div></div>
-    <div class="stat"><div class="label">薪资</div><div class="value">{{ salary if salary is not none else "—" }}</div></div>
+    <div class="stat"><div class="label">下赛季预计薪资</div><div class="value">{{ salary if salary is not none else "—" }}</div></div>
   </div>
   <h3>历史战绩 / 荣誉</h3>
   {% for line in honors %}<p>{{ line }}</p>{% else %}<p>暂无记录</p>{% endfor %}

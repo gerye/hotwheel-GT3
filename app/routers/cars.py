@@ -12,6 +12,7 @@ from app.models import Team
 from urllib.parse import quote
 from app.enums import Category, CarStatus
 from app.services import cars as csvc, teams as tsvc, seasons as ssvc, salary as sal
+from app.services import market
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -137,8 +138,9 @@ def car_detail(car_id: int, request: Request,
     for snap in session.exec(select(CarSeasonMMR).where(
             CarSeasonMMR.car_id == car_id)).all():
         honors.append(f"赛季快照 MMR:{round(snap.mmr)}")
-    active = ssvc.get_active_season(session)
-    salary = sal.compute_salary(session, car, active.id) if active else None
+    # 下赛季预计薪资:进行中赛季实时推算;赛季间用最近已结束赛季
+    proj = ssvc.get_active_season(session) or market.reference_season(session)
+    salary = sal.compute_salary(session, car, proj.id) if proj else None
     return templates.TemplateResponse(request, "car_detail.html", {
         "request": request, "car": car, "team_name": team_name,
         "rank": rank, "honors": honors, "salary": salary})

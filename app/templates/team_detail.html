@@ -18,7 +18,9 @@
   <div class="grid">
     <div class="stat"><div class="label">本赛季积分</div><div class="value">{{ season_points }}</div></div>
     <div class="stat"><div class="label">成员车</div><div class="value">{{ members|length }}</div></div>
-    <div class="stat"><div class="label">预算</div><div class="value">{{ budget if budget is not none else "—" }}</div></div>
+    <div class="stat"><div class="label">下赛季预计总预算</div><div class="value">{{ budget if budget is not none else "—" }}</div></div>
+    <div class="stat"><div class="label">已承担预计薪资</div><div class="value">{{ committed if committed is not none else "—" }}</div></div>
+    <div class="stat"><div class="label">预计余额</div><div class="value">{{ headroom if headroom is not none else "—" }}</div></div>
   </div>
   <h3>成员赛车(按类别)</h3>
   {% for c in members %}

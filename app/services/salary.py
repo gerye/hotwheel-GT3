@@ -51,9 +51,12 @@ def _season_achievements(session: Session, car: Car, season_id: int):
     return champ, finals
 
 
-def compute_salary(session: Session, car: Car, season_id: int) -> int:
-    mmr = _season_mmr(session, car, season_id)
-    champ, finals = _season_achievements(session, car, season_id)
+def compute_salary(session: Session, car: Car, season_id: Optional[int]) -> int:
+    if season_id is None:          # 无往季数据 → MMR 视作 1500、无成绩
+        mmr, champ, finals = 1500.0, 0, 0
+    else:
+        mmr = _season_mmr(session, car, season_id)
+        champ, finals = _season_achievements(session, car, season_id)
     raw = (SALARY_BASE + _mmr_component(mmr)
            + SALARY_CHAMP * champ + SALARY_FINALS * finals
            + (SALARY_LEGEND if is_legend(session, car) else 0))

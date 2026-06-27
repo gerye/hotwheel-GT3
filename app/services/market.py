@@ -18,6 +18,20 @@ def reference_season(session: Session) -> Optional[Season]:
     return ended or ssvc.get_active_season(session)
 
 
+def season_pair(session: Session):
+    """返回 (本赛季来源季 id, 下赛季预计来源季 id)。
+    本赛季的预算/薪资由"上一个已结束赛季"决定;下赛季预计由"进行中赛季"实时推算。
+    任一不存在则为 None(由 budget/salary 当作基础值处理)。"""
+    active = ssvc.get_active_season(session)
+    finished = session.exec(select(Season).where(
+        Season.status == SeasonStatus.FINISHED).order_by(Season.id.desc())).all()
+    if active is not None:
+        return (finished[0].id if finished else None, active.id)
+    nxt = finished[0].id if finished else None
+    cur = finished[1].id if len(finished) > 1 else None
+    return (cur, nxt)
+
+
 def open_market(session: Session) -> None:
     """开盘:按参照赛季写预算/薪资快照;释放所有短期合同车为自由身。"""
     ref = reference_season(session)

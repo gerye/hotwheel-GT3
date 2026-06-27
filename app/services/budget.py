@@ -29,7 +29,9 @@ def _championships(session: Session, team: Team, season_id: int):
     return solo, team_cnt
 
 
-def compute_budget(session: Session, team: Team, season_id: int) -> int:
+def compute_budget(session: Session, team: Team, season_id: Optional[int]) -> int:
+    if season_id is None:          # 无往季数据 → 基础预算
+        return BUDGET_BASE
     pts = standings.team_season_points(session, team.id, season_id)
     solo, team_cnt = _championships(session, team, season_id)
     return (BUDGET_BASE + POINT_VALUE * pts

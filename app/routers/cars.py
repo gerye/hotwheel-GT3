@@ -138,9 +138,11 @@ def car_detail(car_id: int, request: Request,
     for snap in session.exec(select(CarSeasonMMR).where(
             CarSeasonMMR.car_id == car_id)).all():
         honors.append(f"赛季快照 MMR:{round(snap.mmr)}")
-    # 下赛季预计薪资:进行中赛季实时推算;赛季间用最近已结束赛季
-    proj = ssvc.get_active_season(session) or market.reference_season(session)
-    salary = sal.compute_salary(session, car, proj.id) if proj else None
+    # 本赛季薪资(由上一已结束季决定)与 下赛季预计薪资(由进行中季实时推算)
+    this_id, next_id = market.season_pair(session)
+    salary_now = sal.compute_salary(session, car, this_id)
+    salary_next = sal.compute_salary(session, car, next_id)
     return templates.TemplateResponse(request, "car_detail.html", {
         "request": request, "car": car, "team_name": team_name,
-        "rank": rank, "honors": honors, "salary": salary})
+        "rank": rank, "honors": honors,
+        "salary_now": salary_now, "salary_next": salary_next})

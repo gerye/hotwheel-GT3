@@ -18,10 +18,8 @@
   <div class="grid">
     <div class="stat"><div class="label">本赛季积分</div><div class="value">{{ season_points }}</div></div>
     <div class="stat"><div class="label">成员车</div><div class="value">{{ members|length }}</div></div>
-    <div class="stat"><div class="label">本赛季预算</div><div class="value">{{ budget_now }}</div></div>
-    <div class="stat"><div class="label">本赛季承担薪资</div><div class="value">{{ committed_now }}</div></div>
-    <div class="stat"><div class="label">下赛季预计预算</div><div class="value">{{ budget_next }}</div></div>
-    <div class="stat"><div class="label">下赛季预计承担薪资</div><div class="value">{{ committed_next }}</div></div>
+    <div class="stat"><div class="label">本赛季 预算/承担薪资</div><div class="value">{{ budget_now }} / {{ committed_now }}</div></div>
+    <div class="stat"><div class="label">下赛季预计 预算/承担薪资</div><div class="value">{{ budget_next }} / {{ committed_next }}</div></div>
   </div>
   <h3>成员赛车(按类别)</h3>
   {% for c in members %}

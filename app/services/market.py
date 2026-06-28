@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from app.models import Car, Team, Season
 from app.enums import CarStatus, SeasonStatus, ACTIVE_STATUSES, TeamType
 from app.config import MAX_CARS_PER_CATEGORY
-from app.services import market_snapshot, seasons as ssvc
+from app.services import seasons as ssvc
 from app.services import salary as sal, budget as bud, teams as tsvc
 
 
@@ -35,10 +35,7 @@ def season_pair(session: Session):
 
 
 def open_market(session: Session) -> None:
-    """开盘:按参照赛季写预算/薪资快照;释放所有短期合同车为自由身。"""
-    ref = reference_season(session)
-    if ref is not None:
-        market_snapshot.snapshot_season(session, ref.id)
+    """开盘:释放所有短期合约车为自由身(预算/薪资均在页面实时计算,不再存快照)。"""
     for car in session.exec(select(Car).where(
             Car.status == CarStatus.SHORT)).all():
         car.team_id = None

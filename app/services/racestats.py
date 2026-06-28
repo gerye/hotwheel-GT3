@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 from sqlmodel import Session, select
-from app.models import Race, RaceRound, Group, GroupMember, HeatResult, Heat
+from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
+                        HeatResult, Heat, Car)
 from app.enums import RaceStatus
 from app.services import scoring
+
+
+def car_team(session: Session, race_id: int, car_id: int):
+    """车在某场比赛归属的车队:车队赛用 RaceEntry 的参赛快照;
+    单人赛 RaceEntry.team_id 为空,回退到 Car.team_id。统一所有归属判断。"""
+    e = session.exec(select(RaceEntry).where(
+        RaceEntry.race_id == race_id, RaceEntry.car_id == car_id)).first()
+    if e is not None and e.team_id is not None:
+        return e.team_id
+    c = session.get(Car, car_id)
+    return c.team_id if c else None
 
 
 def _is_finished(session: Session, race_id: int) -> bool:

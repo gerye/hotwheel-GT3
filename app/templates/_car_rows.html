@@ -8,14 +8,20 @@
     </span>
   </a>
   <span class="tag">{{ car.category.value }}</span>
+  {% if car.status.value == "未签约" %}
+  <span class="tag" title="加入车队请到「编辑」">未签约</span>
+  {% else %}
+  {% if car.status.is_active %}{% set opts = ["长期合约","短期合约","退役","未签约"] %}
+  {% else %}{% set opts = ["退役","长期合约","短期合约","未签约"] %}{% endif %}
   <form method="post" action="/cars/{{ car.id }}/status" style="margin:0">
     <input type="hidden" name="next" value="/database">
     <select name="status" onchange="this.form.submit()" style="width:auto;padding:4px">
-      {% for s in ["未签约","长期合约","短期合约","退役"] %}
+      {% for s in opts %}
       <option value="{{ s }}" {{ "selected" if car.status.value == s else "" }}>{{ s }}</option>
       {% endfor %}
     </select>
   </form>
+  {% endif %}
   <span><small>MMR {{ car.season_mmr | round | int }}</small></span>
 </div>
 {% else %}

@@ -139,17 +139,3 @@ class TeamPointEntry(SQLModel, table=True):
     race_id: Optional[int] = Field(default=None, foreign_key="race.id")
     description: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
-class TeamBudget(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    season_id: int = Field(foreign_key="season.id")
-    team_id: int = Field(foreign_key="team.id")
-    budget: int
-
-
-class CarSalary(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    season_id: int = Field(foreign_key="season.id")
-    car_id: int = Field(foreign_key="car.id")
-    salary: int

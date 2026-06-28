@@ -8,10 +8,7 @@ from app.services import racestats
 
 
 def _car_team(session: Session, race_id: int, car_id: int):
-    # RaceEntry.team_id 只在车队赛填写;单人赛车队归属以 Car.team_id 为准(项目铁律:
-    # 无车队⟺未签约,有车队⟺现役/退役,见 CLAUDE.md)。两种赛制都直接查 Car 即可。
-    car = session.get(Car, car_id)
-    return car.team_id if car else None
+    return racestats.car_team(session, race_id, car_id)
 
 
 def car_points(session: Session, race_id: int) -> dict:

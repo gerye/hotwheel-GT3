@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from sqlmodel import Session, select
-from app.models import Team, Race, Car
+from app.models import Team, Race
 from app.enums import ProLevel, RaceFormat, RaceStatus
 from app.config import (BUDGET_BASE, POINT_VALUE, CHAMP_BUDGET_SOLO, CHAMP_BUDGET_TEAM)
 from app.services import standings, racestats
@@ -18,10 +18,7 @@ def _championships(session: Session, team: Team, season_id: int):
         if not ranking:
             continue
         champ_car = ranking[0]
-        # 单人赛 RaceEntry.team_id 为空;车队归属统一以 Car.team_id 为准
-        # (与 team_points._car_team 一致)。
-        car = session.get(Car, champ_car)
-        if car and car.team_id == team.id:
+        if racestats.car_team(session, race.id, champ_car) == team.id:
             if race.format == RaceFormat.TEAM:
                 team_cnt += 1
             else:

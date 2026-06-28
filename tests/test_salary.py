@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from app.models import TeamBudget, CarSalary, Car
+from app.models import Car
 from app.enums import Category, CarStatus
 
 
-def test_new_tables_and_contract(session):
+def test_car_status_persists(session):
     c = Car(nickname="x", category=Category.GT3, status=CarStatus.LONG)
     session.add(c); session.commit(); session.refresh(c)
     assert c.status == CarStatus.LONG
-    session.add(TeamBudget(season_id=1, team_id=1, budget=800))
-    session.add(CarSalary(season_id=1, car_id=c.id, salary=150))
-    session.commit()
 
 
 from app.services import salary as sal

@@ -135,12 +135,9 @@ def group_scoreboard(session: Session, group: Group, race: Race) -> dict:
                 "total": car_total[cid]}
 
     if race.format == RaceFormat.TEAM:
-        entries = session.exec(select(RaceEntry)
-                               .where(RaceEntry.race_id == race.id)).all()
-        car_team = {e.car_id: e.team_id for e in entries if e.team_id is not None}
         team_cars: dict[int, list] = {}
         for cid in per_car:
-            tid = car_team.get(cid)
+            tid = racestats.car_team(session, race.id, cid)
             if tid is not None:
                 team_cars.setdefault(tid, []).append(cid)
         totals = team_scoring.team_totals(team_cars, car_total)
@@ -342,16 +339,15 @@ class TeamGroupResult:
 
 def settle_team_group(session: Session, group_id: int) -> TeamGroupResult:
     group = session.get(Group, group_id)
+    race_id = session.get(RaceRound, group.round_id).race_id
     results = _group_results(session, group_id)
     car_points = scoring.group_totals(results)
-    # 用本组成员归属拆出两队的车
+    # 用统一归属把本组车拆到两队
     team_cars: dict[int, list[int]] = {group.team_a_id: [], group.team_b_id: []}
     for cid in car_points:
-        entry = session.exec(select(RaceEntry).where(
-            RaceEntry.car_id == cid, RaceEntry.team_id.in_(
-                [group.team_a_id, group.team_b_id]))).first()
-        if entry:
-            team_cars[entry.team_id].append(cid)
+        tid = racestats.car_team(session, race_id, cid)
+        if tid in (group.team_a_id, group.team_b_id):
+            team_cars[tid].append(cid)
     totals = team_scoring.team_totals(team_cars, car_points)
     winner = team_scoring.team_winner(totals)
     return TeamGroupResult(winner_team_id=winner)

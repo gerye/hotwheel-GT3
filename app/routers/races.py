@@ -9,7 +9,7 @@ from app.models import (Car, Team, Race, RaceRound, Group, GroupMember,
                         Heat, HeatResult)
 from app.enums import Category, ProLevel, RaceFormat, CarStatus, ACTIVE_STATUSES
 from app.enums import RaceStatus
-from app.services import tournament as T, seasons as ssvc, scoring
+from app.services import tournament as T, seasons as ssvc, scoring, racestats
 from app.routers.pages import templates
 
 router = APIRouter()
@@ -117,10 +117,7 @@ def race_detail(race_id: int, request: Request,
             gv["team_a"] = ta.specific_name(race.category) if ta else None
             gv["team_b"] = tb.specific_name(race.category) if tb else None
         view.append(gv)
-    final_ranking = None
-    if race.status == RaceStatus.FINISHED and groups:
-        totals = scoring.group_totals(T._group_results(session, groups[0].id))
-        final_ranking = scoring.final_ranking(totals)
+    final_ranking = racestats.final_ranking(session, race.id) or None
     return templates.TemplateResponse(request, "race_detail.html", {
         "request": request, "race": race, "round": rnd, "groups": view,
         "names": names, "final_ranking": final_ranking})

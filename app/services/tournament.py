@@ -9,7 +9,7 @@ from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
 from app.enums import Category, ProLevel, RaceFormat, RaceStatus, ACTIVE_STATUSES
 from app.services import grouping, lineup, seasons as ssvc
 from app.services import mmr as mmr_svc, standings as st_svc
-from app.services import scoring, team_scoring
+from app.services import scoring, team_scoring, racestats
 
 
 def create_race(session: Session, *, category: Category, pro_level: ProLevel,
@@ -160,13 +160,8 @@ def group_scoreboard(session: Session, group: Group, race: Race) -> dict:
 
 
 def _group_results(session: Session, group_id: int) -> dict[int, list]:
-    results: dict[int, list] = {}
-    heats = session.exec(select(Heat).where(Heat.group_id == group_id)).all()
-    for h in heats:
-        for r in session.exec(select(HeatResult)
-                              .where(HeatResult.heat_id == h.id)).all():
-            results.setdefault(r.car_id, []).append(r.rank)
-    return results
+    # 单一实现见 racestats._group_results;此处复用,避免重复。
+    return racestats._group_results(session, group_id)
 
 
 def group_recorded(session: Session, group_id: int) -> bool:

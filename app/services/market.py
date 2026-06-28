@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Optional
 from sqlmodel import Session, select
 from app.models import Car, Team, Season
-from app.enums import CarStatus, SeasonStatus, ACTIVE_STATUSES
+from app.enums import CarStatus, SeasonStatus, ACTIVE_STATUSES, TeamType
+from app.config import MAX_CARS_PER_CATEGORY
 from app.services import market_snapshot, seasons as ssvc
+from app.services import salary as sal, budget as bud, teams as tsvc
 
 
 class MarketError(Exception):
@@ -45,11 +47,6 @@ def open_market(session: Session) -> None:
     session.commit()
 
 
-from app.enums import TeamType
-from app.services import salary as sal, budget as bud, teams as tsvc
-from app.config import MAX_CARS_PER_CATEGORY
-
-
 def committed_salary(session: Session, team_id: int, season_id: int) -> int:
     cars = session.exec(select(Car).where(Car.team_id == team_id,
                         Car.status.in_(ACTIVE_STATUSES))).all()
@@ -62,9 +59,8 @@ def headroom(session: Session, team_id: int, season_id: int) -> int:
 
 
 def _active_in_category(session: Session, team_id: int, category) -> int:
-    return len(session.exec(select(Car).where(
-        Car.team_id == team_id, Car.category == category,
-        Car.status.in_(ACTIVE_STATUSES))).all())
+    # 复用 teams.active_count(同一「某类别现役计数」逻辑)
+    return tsvc.active_count(session, team_id, category, None)
 
 
 def sign(session: Session, car_id: int, team_id: int, season_id: int) -> None:

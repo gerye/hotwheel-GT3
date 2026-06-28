@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.config import ELO_K
-from app.models import Car, Group, Heat, HeatResult
-from app.services import scoring
+from app.models import Car, Group
+from app.services import scoring, racestats
 
 
 def _expected(my: float, opp: float) -> float:
@@ -37,12 +37,7 @@ def apply_deltas(ratings: dict[int, float],
 
 
 def _group_totals(session: Session, group_id: int) -> dict[int, int]:
-    results: dict[int, list] = {}
-    for h in session.exec(select(Heat).where(Heat.group_id == group_id)).all():
-        for r in session.exec(select(HeatResult)
-                              .where(HeatResult.heat_id == h.id)).all():
-            results.setdefault(r.car_id, []).append(r.rank)
-    return scoring.group_totals(results)
+    return scoring.group_totals(racestats._group_results(session, group_id))
 
 
 def settle_group_mmr(session: Session, group_id: int) -> None:

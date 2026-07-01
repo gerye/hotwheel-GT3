@@ -3,51 +3,84 @@
 {% block content %}
 <div class="card">
   <h2>转会市场</h2>
-  {% if not ref %}<p class="error">还没有赛季,无法转会。</p>{% else %}
-  <p><small>参照赛季:{{ ref.name }}</small></p>
-  <form method="post" action="/market/open" style="display:inline"
-        onsubmit="return confirm('开盘会释放所有短期合同车为自由身,确定?')">
-    <button class="btn">开盘(释放短期车)</button></form>
-  <form method="post" action="/market/recommend" style="display:inline">
-    <button class="btn">生成推荐阵容</button></form>
-  <form method="post" action="/market/finalize" style="display:inline">
-    <button class="btn">完成转会 → 去开启下一季</button></form>
+  {% if err %}<p class="error">{{ err }}</p>{% endif %}
+  {% if not ref %}<p class="error">还没有已结束赛季,无法转会。</p>
+  {% elif not draft %}
+    <p><small>参照赛季:{{ ref.name }}</small></p>
+    <form method="post" action="/market/open" style="display:inline">
+      <button class="btn">开盘(建立选秀)</button></form>
+  {% else %}
+    <p><small>参照赛季:{{ ref.name }}</small></p>
+    <form method="post" action="/market/reset" style="display:inline"
+          onsubmit="return confirm('重置将还原本次转会的所有改动,确定?')">
+      <button class="btn">一键重置</button></form>
+    <form method="post" action="/market/finalize" style="display:inline"
+          onsubmit="return confirm('结束转会并去开启下一季?')">
+      <button class="btn">结束转会 → 开启下一季</button></form>
   {% endif %}
 </div>
 
-{% for tv in teams %}
+{% if draft %}
 <div class="card">
-  <div style="display:flex;justify-content:space-between">
-    <strong>{{ tv.team.name }}</strong>
-    <span><small>预算 {{ tv.budget }} · 余额 {{ tv.headroom }}</small></span>
+  <h3>选秀队列(按余额优先)</h3>
+  {% for row in queue %}
+  <div class="row" style="{{ 'opacity:.5' if row.locked else '' }}">
+    <span style="flex:1">
+      {% if row.is_current %}▶ {% elif row.locked %}✓ {% endif %}
+      <strong>{{ row.team.name }}</strong>
+      <small>余额 {{ row.headroom }} · 积分 {{ row.points }}</small>
+    </span>
+    {% if not row.locked and not row.is_current and not current %}
+    <form method="post" action="/market/enter" style="margin:0">
+      <input type="hidden" name="team_id" value="{{ row.team.id }}">
+      <button class="btn">处理该队</button></form>
+    {% endif %}
   </div>
-  {% for r in tv.roster %}
-  <div class="row">
-    <span style="flex:1">{{ r.car.nickname }} <span class="tag">{{ r.car.category.value }}</span>
-      {% if r.car.status.is_active %}<span class="tag">{{ r.car.status.value }}</span>{% endif %}</span>
-    <span><small>薪资 {{ r.salary }}</small></span>
-    <form method="post" action="/market/release" style="display:inline">
-      <input type="hidden" name="car_id" value="{{ r.car.id }}">
-      <button class="btn">释放</button></form>
-  </div>
-  {% else %}<p><small>无现役</small></p>{% endfor %}
+  {% endfor %}
 </div>
-{% endfor %}
+{% endif %}
 
+{% if current %}
 <div class="card">
-  <h3>自由市场</h3>
-  {% for p in pool %}
-  <div class="row">
-    <span style="flex:1">{{ p.car.nickname }} <span class="tag">{{ p.car.category.value }}</span> · {{ p.car.brand }}</span>
-    <span><small>薪资 {{ p.salary }}</small></span>
-    <form method="post" action="/market/sign" style="display:flex;gap:4px">
-      <input type="hidden" name="car_id" value="{{ p.car.id }}">
-      <select name="team_id">
-        {% for tv in teams %}<option value="{{ tv.team.id }}">{{ tv.team.name }}</option>{% endfor %}
-      </select>
-      <button class="btn">签约</button>
+  <h3>正在处理:{{ current.team.name }}
+    <small>预算 {{ current.budget }} · 余额 {{ current.headroom }}</small></h3>
+  <p><small>含长期车的类别须先锁定;无长期车类别 0 或 2 个现役。</small></p>
+  {% for cv in current.cats %}
+  <div class="card" style="margin:8px 0">
+    <div style="display:flex;justify-content:space-between">
+      <strong>{{ cv.category.value }}{% if cv.has_long %}(含长期车){% endif %}</strong>
+      {% if cv.locked %}
+      <form method="post" action="/market/unlock" style="margin:0">
+        <input type="hidden" name="team_id" value="{{ current.team.id }}">
+        <input type="hidden" name="category" value="{{ cv.category.value }}">
+        <button class="btn">✓ 已锁定 · 解锁重选</button></form>
+      {% endif %}
+    </div>
+    {% if not cv.locked %}
+    <form method="post" action="/market/lock">
+      <input type="hidden" name="team_id" value="{{ current.team.id }}">
+      <input type="hidden" name="category" value="{{ cv.category.value }}">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        {% for slot in ['slot1', 'slot2'] %}
+        <select name="{{ slot }}" style="width:auto">
+          <option value="">（空）</option>
+          {% for p in cv.pool %}
+          <option value="{{ p.car.id }}" {{ '' if p.affordable else 'disabled' }}>
+            {{ p.car.nickname }} · 薪 {{ p.salary }}{{ '' if p.affordable else '(超预算)' }}
+          </option>
+          {% endfor %}
+        </select>
+        {% endfor %}
+        <button class="btn" type="submit">锁定该类别</button>
+      </div>
+      <p><small>建议:补强 = {{ cv.rec.strengthen }};可解散 = {{ cv.rec.can_disband }}</small></p>
     </form>
+    {% endif %}
   </div>
-  {% else %}<p>自由市场空</p>{% endfor %}
+  {% endfor %}
+  <form method="post" action="/market/confirm">
+    <input type="hidden" name="team_id" value="{{ current.team.id }}">
+    <button class="btn" type="submit">确认该车队(三类别全锁后生效)</button></form>
 </div>
+{% endif %}
 {% endblock %}

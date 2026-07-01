@@ -4,7 +4,7 @@ from sqlmodel import select
 from app.enums import Category, TeamType, CarStatus
 from app.services import seasons as ssvc, teams as tsvc, cars as csvc
 from app.services import market, market_draft as md
-from app.models import Car, MarketDraft, DraftCarSnapshot
+from app.models import Car, Team, MarketDraft, DraftCarSnapshot
 
 
 def test_models_exist_and_default():
@@ -248,3 +248,35 @@ def test_confirm_requires_all_three_locked(session):
     session.expire_all()
     d = md.get_draft(session)
     assert tf.id in md.locked_team_ids(d) and d.current_team_id is None
+
+
+def test_full_draft_converges(session):
+    ssvc.start_season(session, name="S1")
+    tids = []
+    for i in range(4):
+        if i < 2:
+            t = tsvc.create_team(session, type=TeamType.FACTORY, brand=["法拉利", "红牛"][i], name=None)
+        else:
+            t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name=f"独立{i}")
+        tids.append(t.id)
+        brand = session.get(Team, t.id).brand or "无"
+        for cat in Category:
+            for k in range(2):
+                csvc.create_car(session, nickname=f"T{i}-{cat.value}-{k}", category=cat,
+                                brand=brand, casting="", description="", team_id=t.id,
+                                signed_status=[CarStatus.LONG, CarStatus.SHORT][k])
+    md.open_draft(session)
+    guard = 0
+    while True:
+        guard += 1
+        assert guard < 50, "队列未收敛"
+        top = md._highest_unlocked(session, md.get_draft(session))
+        if top is None:
+            break
+        md.enter_team(session, top)
+        for cat in sorted(Category, key=lambda c: not md._has_long(session, top, c)):
+            rec = md.category_recommendation(session, top, cat)
+            md.lock_category(session, top, cat, (rec["strengthen"] + [None, None])[:2])
+        md.confirm_team(session, top)
+    session.expire_all()
+    assert md.locked_team_ids(md.get_draft(session)) == set(tids)

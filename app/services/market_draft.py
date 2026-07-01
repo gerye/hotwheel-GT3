@@ -188,9 +188,10 @@ def category_recommendation(session: Session, team_id: int, category: Category) 
                 and car.category == category and snap.orig_status == CarStatus.SHORT):
             keep.append(car.id)
     keep = keep[:MAX_CARS_PER_CATEGORY]
+    rows = category_pool(session, team_id, category)   # 按赛季末 MMR 降序
     strengthen = list(long_ids)
     hr = market.headroom(session, team_id, ref_id)
-    for row in category_pool(session, team_id, category):
+    for row in rows:
         if len(strengthen) >= MAX_CARS_PER_CATEGORY:
             break
         if row["car"].id in strengthen:
@@ -198,9 +199,15 @@ def category_recommendation(session: Session, team_id: int, category: Category) 
         if row["salary"] <= hr:
             strengthen.append(row["car"].id)
             hr -= row["salary"]
-    # 无长期车的类别只能 0 或 2:凑不满 2 的补强是非法的锁定态,退化为「不参赛」(空)。
-    if not longs and len(strengthen) < MAX_CARS_PER_CATEGORY:
-        strengthen = []
+    # 无长期车:保证建议是合法锁定态。够买两辆最便宜的→必须给 2(贪心没凑到 2 时
+    # 退而取两辆最便宜的可行组合);买不起两辆则保留贪心得到的 1(或 0),均合法。
+    if not longs:
+        base_hr = market.headroom(session, team_id, ref_id)
+        prices = sorted(r["salary"] for r in rows)
+        feasible_two = len(prices) >= 2 and prices[0] + prices[1] <= base_hr
+        if feasible_two and len(strengthen) != MAX_CARS_PER_CATEGORY:
+            cheapest = sorted(rows, key=lambda r: r["salary"])[:MAX_CARS_PER_CATEGORY]
+            strengthen = [r["car"].id for r in cheapest]
     return {"keep": keep, "can_disband": len(longs) == 0, "strengthen": strengthen}
 
 
@@ -252,7 +259,8 @@ def lock_category(session: Session, team_id: int, category: Category,
     #   - 满 2:恒合法。
     #   - 含长期车:长期钉死(n≥1)。须补满到 2,除非池中已无「合法+买得起」的车
     #     (逃生阀)才允许停在 1(长期车单撑)。
-    #   - 无长期车:只能 0 或 2。0(整类别不参赛)恒合法;1 非法。
+    #   - 无长期车:0(整类别不参赛)恒合法;停在 1 仅当**预算凑不齐 2 辆**
+    #     (最便宜的两辆买不起或候选不足 2)时才允许;若够买两辆最便宜的,必须 0 或 2。
     has_long = bool(long_ids)
     n = len(chosen_ids)
     if n == MAX_CARS_PER_CATEGORY:
@@ -263,10 +271,14 @@ def lock_category(session: Session, team_id: int, category: Category,
         if addable:
             raise DraftError("含长期车的类别可补强,必须补满到 2 个现役")
         # 否则允许停在 1(长期车单撑)
-    else:
-        if n == 1:
-            raise DraftError("无长期车的类别必须是 0 或 2 个现役")
-        # n == 0:整类别不参赛,恒合法
+    elif n == 1:
+        hr_now = market.headroom(session, team_id, ref_id)
+        prices = sorted(r["salary"] for r in pool.values())
+        feasible_two = len(prices) >= 2 and prices[0] + prices[1] <= hr_now
+        if feasible_two:
+            raise DraftError("预算足以组成 2 辆,无长期车的类别必须 0 或 2 个现役")
+        # 否则(买不起两辆最便宜的车 / 候选不足 2)允许停在 1
+    # n == 0:整类别不参赛,恒合法
 
     # ⑤ 预算
     other_salary = 0

@@ -347,15 +347,49 @@ def test_lock_nonlong_can_disband_even_with_affordable_pool(session):
     assert tsvc.active_count(session, tf.id, Category.F1, None) == 0
 
 
-def test_recommendation_nonlong_collapses_when_cannot_fill_two(session):
-    """回归:无长期车类别只有 1 辆可签车时,补强建议退化为空(不给非法的 1 车阵容)。"""
+def test_recommendation_nonlong_single_feasible_suggests_one(session):
+    """无长期车类别只有 1 辆可签车(无法凑 2)时,建议给这 1 辆,且可直接锁定成 1。"""
     ssvc.start_season(session, name="S1")
     tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
     only = csvc.create_car(session, nickname="唯一法F1", category=Category.F1, brand="法拉利",
                            casting="", description="", team_id=None)
     _enter_top(session)
     rec = md.category_recommendation(session, tf.id, Category.F1)
-    assert rec["strengthen"] == []            # 凑不满 2 → 建议不参赛,而非非法的 [only]
-    # 且该建议可直接锁定(不会被校验拒绝)
+    assert rec["strengthen"] == [only.id]     # 凑不满 2 → 给出可行的 1 辆
     md.lock_category(session, tf.id, Category.F1, (rec["strengthen"] + [None, None])[:2])
     assert Category.F1 in md.locked_categories(md.get_draft(session))
+    assert tsvc.active_count(session, tf.id, Category.F1, None) == 1
+
+
+def test_lock_nonlong_one_allowed_when_two_unaffordable(session):
+    """无长期车类别:预算买得起 1 辆、买不起两辆最便宜的 → 允许锁成 1。"""
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    # 两辆都较贵(高 MMR),预算(基础 800)只够签一辆,凑不齐两辆
+    a = csvc.create_car(session, nickname="贵A", category=Category.F1, brand="法拉利",
+                        casting="", description="", team_id=None)
+    b = csvc.create_car(session, nickname="贵B", category=Category.F1, brand="法拉利",
+                        casting="", description="", team_id=None)
+    for c in (a, b):
+        c.season_mmr = 1850; c.historical_mmr = 1850; session.add(c)
+    session.commit()
+    _enter_top(session)
+    # 单辆买得起、两辆买不起 → 锁成 1 合法
+    md.lock_category(session, tf.id, Category.F1, [a.id, None])
+    assert tsvc.active_count(session, tf.id, Category.F1, None) == 1
+
+
+def test_lock_nonlong_one_rejected_when_two_affordable(session):
+    """无长期车类别:预算买得起两辆最便宜的 → 停在 1 非法,必须 0 或 2。"""
+    import pytest
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    a = csvc.create_car(session, nickname="廉A", category=Category.F1, brand="法拉利",
+                        casting="", description="", team_id=None)
+    b = csvc.create_car(session, nickname="廉B", category=Category.F1, brand="法拉利",
+                        casting="", description="", team_id=None)  # 均低薪,两辆可负担
+    _enter_top(session)
+    with pytest.raises(md.DraftError):
+        md.lock_category(session, tf.id, Category.F1, [a.id, None])   # 能组 2 却只签 1 → 拒
+    md.lock_category(session, tf.id, Category.F1, [a.id, b.id])       # 组 2 合法
+    assert tsvc.active_count(session, tf.id, Category.F1, None) == 2

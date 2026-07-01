@@ -280,3 +280,27 @@ def test_full_draft_converges(session):
         md.confirm_team(session, top)
     session.expire_all()
     assert md.locked_team_ids(md.get_draft(session)) == set(tids)
+
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+_client = TestClient(app)
+
+
+def test_routes_open_enter_lock_confirm(engine, session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    assert _client.post("/market/open", follow_redirects=False).status_code in (302, 303)
+    assert _client.get("/market").status_code == 200
+    assert _client.post("/market/enter", data={"team_id": tf.id},
+                        follow_redirects=False).status_code in (302, 303)
+    for cat in ["GT3", "F1", "公路车"]:
+        r = _client.post("/market/lock", data={"team_id": tf.id, "category": cat,
+                         "slot1": "", "slot2": ""}, follow_redirects=False)
+        assert r.status_code in (302, 303)
+    assert _client.post("/market/confirm", data={"team_id": tf.id},
+                        follow_redirects=False).status_code in (302, 303)
+    assert _client.post("/market/reset", follow_redirects=False).status_code in (302, 303)

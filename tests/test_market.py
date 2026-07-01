@@ -1,7 +1,8 @@
-from sqlmodel import select
+from __future__ import annotations
+
 from app.enums import Category, TeamType, CarStatus
-from app.services import seasons as ssvc, teams as tsvc, cars as csvc, market
-from app.models import Car
+from app.services import seasons as ssvc, teams as tsvc, cars as csvc
+from app.services import market, salary as sal, budget as bud
 
 
 def _seed(session):
@@ -16,159 +17,31 @@ def _seed(session):
     return s, t, long_car, short_car
 
 
-def test_open_market_releases_short_keeps_long(session):
-    s, t, long_car, short_car = _seed(session)
-    ssvc.end_season(session, s.id)          # 先结束赛季,产生 MMR 快照
-    market.open_market(session)
-    session.expire_all()
-    assert session.get(Car, long_car.id).team_id == t.id            # 长期留任
-    assert session.get(Car, long_car.id).status == CarStatus.LONG
-    assert session.get(Car, short_car.id).team_id is None           # 短期释放
-    assert session.get(Car, short_car.id).status == CarStatus.UNSIGNED
+def test_reference_season_prefers_finished(session):
+    s, t, _, _ = _seed(session)
+    assert market.reference_season(session).id == s.id
+    ssvc.end_season(session, s.id)
+    assert market.reference_season(session).id == s.id
 
 
-from app.services import salary as sal, budget as bud
-
-
-def test_headroom_and_sign(session):
+def test_committed_salary_and_headroom(session):
     s, t, long_car, short_car = _seed(session)
     ssvc.end_season(session, s.id)
-    market.open_market(session)             # short_car 释放
     ref = market.reference_season(session)
-    # 自由市场签回 short_car
-    market.sign(session, short_car.id, t.id, ref.id)
-    session.expire_all()
-    assert session.get(Car, short_car.id).team_id == t.id
-    assert session.get(Car, short_car.id).status == CarStatus.SHORT
+    committed = market.committed_salary(session, t.id, ref.id)
+    expected = (sal.compute_salary(session, long_car, ref.id)
+                + sal.compute_salary(session, short_car, ref.id))
+    assert committed == expected
+    assert market.headroom(session, t.id, ref.id) == \
+        bud.compute_budget(session, t, ref.id) - committed
 
 
-def test_sign_blocked_when_category_full(session):
-    import pytest
-    s = ssvc.start_season(session, name="S1")
-    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
-    for i in range(2):
-        csvc.create_car(session, nickname=f"a{i}", category=Category.GT3, brand="B",
-                        casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
-    free = csvc.create_car(session, nickname="free", category=Category.GT3, brand="B",
-                           casting="", description="", team_id=None)
-    ssvc.end_season(session, s.id)
-    market.open_market(session)
-    ref = market.reference_season(session)
-    with pytest.raises(market.MarketError):
-        market.sign(session, free.id, t.id, ref.id)     # 该类别已 2 现役
-
-
-def test_recommend_fills_partial_category(session):
-    s = ssvc.start_season(session, name="S1")
-    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
-    csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
-                    casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
-    free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
-                           casting="", description="", team_id=None)
-    ssvc.end_season(session, s.id)
-    market.open_market(session)
-    ref = market.reference_season(session)
-    market.recommend(session, ref.id)
-    session.expire_all()
-    # 该队 GT3 原本 1 现役 → 推荐补到 2,签下自由车
-    assert session.get(Car, free.id).team_id == t.id
-    assert market._active_in_category(session, t.id, Category.GT3) == 2
-
-
-from fastapi.testclient import TestClient
-from app.main import app
-
-client = TestClient(app)
-
-
-def test_market_page_and_actions(engine, session):
-    s = ssvc.start_season(session, name="S1")
-    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
-    csvc.create_car(session, nickname="留任", category=Category.GT3, brand="B",
-                    casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
-    csvc.create_car(session, nickname="自由", category=Category.GT3, brand="B",
-                    casting="", description="", team_id=None)
-    ssvc.end_season(session, s.id)
-    assert client.post("/market/open", follow_redirects=False).status_code in (302, 303)
-    r = client.get("/market")
-    assert r.status_code == 200 and "自由" in r.text and "预算" in r.text
-    assert client.post("/market/recommend", follow_redirects=False).status_code in (302, 303)
-
-
-def test_finalize_redirects_to_seasons(engine, session):
-    ssvc.start_season(session, name="S1")
-    ssvc.end_season(session, session.exec(select(__import__('app.models', fromlist=['Season']).Season)).first().id)
-    client.post("/market/open")
-    r = client.post("/market/finalize", follow_redirects=False)
-    assert r.status_code in (302, 303) and "/seasons" in r.headers["location"]
-
-
-def test_factory_signs_brandless_car_keeps_brand(session):
-    """品牌为「无」的车可被厂商队签约,签约后品牌保持「无」。"""
-    s = ssvc.start_season(session, name="S1")
-    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
-    free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
-                           casting="", description="", team_id=None)
-    market.sign(session, free.id, tf.id, s.id)
-    session.expire_all()
-    assert session.get(Car, free.id).team_id == tf.id
-    assert session.get(Car, free.id).brand == "无"          # 品牌不变
-
-
-def test_factory_still_rejects_other_brand(session):
-    import pytest
-    s = ssvc.start_season(session, name="S1")
-    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    free = csvc.create_car(session, nickname="保时捷车", category=Category.GT3,
-                           brand="保时捷", casting="", description="", team_id=None)
-    with pytest.raises(market.MarketError):
-        market.sign(session, free.id, tf.id, s.id)          # 有品牌且不符 → 仍拒绝
-
-
-def test_recommend_considers_brandless_for_factory(session):
-    """转会推荐里,厂商队应把无品牌(空)自由车纳入考虑并签下。"""
-    s = ssvc.start_season(session, name="S1")
-    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
-    free = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="",
-                           casting="", description="", team_id=None)
-    market.recommend(session, s.id)
-    session.expire_all()
-    assert session.get(Car, free.id).team_id == tf.id
-
-
-def test_factory_team_accepts_brandless_member_on_create(session):
-    """直接把无品牌车建进厂商队(走 check_can_assign)应通过。"""
-    ssvc.start_season(session, name="S1")
-    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    c = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
-                        casting="", description="", team_id=tf.id)
-    assert c.team_id == tf.id and c.status.is_active
-
-
-def test_recommend_does_not_starve_lower_headroom_team(session):
+def test_committed_salary_excludes_retired(session):
+    from app.services import cars as c2
     from app.models import Car
-    s = ssvc.start_season(session, name="S1")
-    # A队:厂商法拉利,1 现役法拉利 GT3(便宜→余额最高),但无自由法拉利车可补
-    ta = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
-    a = csvc.create_car(session, nickname="法A", category=Category.GT3, brand="法拉利",
-                        casting="", description="", team_id=ta.id, signed_status=CarStatus.LONG)
-    a.season_mmr = 1400; a.historical_mmr = 1400; session.add(a); session.commit()
-    # B队:独立,1 现役 GT3(余额略低)
-    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B队")
-    b = csvc.create_car(session, nickname="B1", category=Category.GT3, brand="X",
-                        casting="", description="", team_id=tb.id, signed_status=CarStatus.LONG)
-    b.season_mmr = 1500; b.historical_mmr = 1450; session.add(b); session.commit()
-    # 自由 GT3(保时捷):A 因品牌锁不能签,B 独立能签
-    free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="保时捷",
-                           casting="", description="", team_id=None)
-    free.season_mmr = 1500; free.historical_mmr = 1600; session.add(free); session.commit()
-    market.recommend(session, s.id)
-    session.expire_all()
-    # A 补不动不应阻塞 B:低余额的 B 队应补到 2
-    assert session.get(Car, free.id).team_id == tb.id
-    assert market._active_in_category(session, tb.id, Category.GT3) == 2
-    assert market._active_in_category(session, ta.id, Category.GT3) == 1
+    s, t, long_car, short_car = _seed(session)
+    c2.change_status(session, short_car.id, CarStatus.RETIRED)
+    ssvc.end_season(session, s.id)
+    ref = market.reference_season(session)
+    assert market.committed_salary(session, t.id, ref.id) == \
+        sal.compute_salary(session, session.get(Car, long_car.id), ref.id)

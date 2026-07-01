@@ -145,3 +145,19 @@ def recommend(session: Session, season_id: int) -> None:
                     pass
         if not signed_any:
             blocked.add(team.id)   # 这轮补不动 → 移出候选,让其它队继续
+
+
+def assign_car(session: Session, car: Car, team_id: int, status: CarStatus) -> None:
+    """底层:把 car 落到 team(现役状态),不做校验(校验在调用方)。"""
+    car.team_id = team_id
+    car.status = status
+    session.add(car)
+    session.commit()
+
+
+def release_car(session: Session, car: Car) -> None:
+    """底层:解约 car → 未签约、无车队。"""
+    car.team_id = None
+    car.status = CarStatus.UNSIGNED
+    session.add(car)
+    session.commit()

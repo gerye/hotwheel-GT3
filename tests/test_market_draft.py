@@ -79,3 +79,40 @@ def test_queue_orders_by_headroom_then_points(session):
     q = md.draft_queue(session)
     assert [row["team"].id for row in q][:2] == [ta.id, tb.id]
     assert all("headroom" in row and "locked" in row for row in q)
+
+
+def test_enter_team_releases_own_shorts_only(session):
+    ssvc.start_season(session, name="S1")
+    ta = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="A")
+    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B")
+    a_long = csvc.create_car(session, nickname="A长", category=Category.GT3, brand="X",
+                             casting="", description="", team_id=ta.id, signed_status=CarStatus.LONG)
+    a_short = csvc.create_car(session, nickname="A短", category=Category.F1, brand="X",
+                              casting="", description="", team_id=ta.id, signed_status=CarStatus.SHORT)
+    b_short = csvc.create_car(session, nickname="B短", category=Category.GT3, brand="X",
+                              casting="", description="", team_id=tb.id, signed_status=CarStatus.SHORT)
+    md.open_draft(session)
+    top = md.draft_queue(session)[0]["team"].id
+    md.enter_team(session, top)
+    session.expire_all()
+    d = md.get_draft(session)
+    assert d.current_team_id == top
+    if top == ta.id:
+        assert session.get(Car, a_short.id).status == CarStatus.UNSIGNED
+        assert session.get(Car, a_long.id).status == CarStatus.LONG
+        assert session.get(Car, b_short.id).status == CarStatus.SHORT
+
+
+def test_enter_rejects_when_not_top_or_busy(session):
+    import pytest
+    ssvc.start_season(session, name="S1")
+    ta = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="A")
+    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B")
+    csvc.create_car(session, nickname="a", category=Category.GT3, brand="X", casting="",
+                    description="", team_id=ta.id, signed_status=CarStatus.LONG)
+    md.open_draft(session)
+    q = md.draft_queue(session)
+    top, other = q[0]["team"].id, q[1]["team"].id
+    md.enter_team(session, top)
+    with pytest.raises(md.DraftError):
+        md.enter_team(session, other)

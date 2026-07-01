@@ -104,3 +104,28 @@ def draft_queue(session: Session) -> list:
     for r in rows:
         r.pop("_key")
     return rows
+
+
+def _highest_unlocked(session: Session, draft: MarketDraft) -> Optional[int]:
+    for row in draft_queue(session):
+        if not row["locked"]:
+            return row["team"].id
+    return None
+
+
+def enter_team(session: Session, team_id: int) -> None:
+    draft = get_draft(session)
+    if draft is None:
+        raise DraftError("尚未开盘")
+    if draft.current_team_id is not None:
+        raise DraftError("已有正在处理的车队,请先确认或重置")
+    if team_id in locked_team_ids(draft):
+        raise DraftError("该车队已确认")
+    if team_id != _highest_unlocked(session, draft):
+        raise DraftError("必须先处理当前余额最高的车队")
+    for c in session.exec(select(Car).where(Car.team_id == team_id,
+                          Car.status == CarStatus.SHORT)).all():
+        market.release_car(session, c)
+    draft.current_team_id = team_id
+    draft.locked_categories = ""
+    session.add(draft); session.commit()

@@ -136,3 +136,11 @@ def test_health_detects_unfinished_and_draft(session):
     assert checks["unfinished_races"]["ok"] is False
     assert checks["open_draft"]["ok"] is False
     assert checks["unfinished_races"]["severity"] == "warn"
+
+
+from app.main import app
+
+
+def test_insights_routes_registered():
+    paths = {r.path for r in app.routes}
+    assert {"/insights", "/lanes", "/health"} <= paths

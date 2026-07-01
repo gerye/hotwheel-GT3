@@ -29,7 +29,7 @@ def home() -> RedirectResponse:
     return RedirectResponse(url="/database")
 
 
-from app.routers import pages, cars, teams, seasons, races, standings, market  # noqa: E402
+from app.routers import pages, cars, teams, seasons, races, standings, market, insights  # noqa: E402
 app.include_router(pages.router)
 app.include_router(cars.router)
 app.include_router(teams.router)
@@ -37,3 +37,4 @@ app.include_router(seasons.router)
 app.include_router(races.router)
 app.include_router(standings.router)
 app.include_router(market.router)
+app.include_router(insights.router)

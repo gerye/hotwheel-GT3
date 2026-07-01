@@ -139,3 +139,23 @@ class TeamPointEntry(SQLModel, table=True):
     race_id: Optional[int] = Field(default=None, foreign_key="race.id")
     description: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class MarketDraft(SQLModel, table=True):
+    """一次转会选秀的草稿状态(开盘到定档之间)。同一时刻至多一条。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    reference_season_id: int = Field(foreign_key="season.id")
+    current_team_id: Optional[int] = Field(default=None, foreign_key="team.id")
+    locked_team_ids: str = ""        # 逗号分隔的已确认队 id
+    locked_categories: str = ""      # 当前队里已锁定类别(Category.value,逗号分隔)
+    tiebreak_seed: int = 0           # 平局随机裁决种子,开盘时定
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DraftCarSnapshot(SQLModel, table=True):
+    """开盘时每辆车的原始归属/状态,供一键重置还原。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    draft_id: int = Field(foreign_key="marketdraft.id")
+    car_id: int = Field(foreign_key="car.id")
+    orig_team_id: Optional[int] = Field(default=None, foreign_key="team.id")
+    orig_status: CarStatus = CarStatus.UNSIGNED

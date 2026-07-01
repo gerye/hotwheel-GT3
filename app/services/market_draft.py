@@ -282,3 +282,32 @@ def lock_category(session: Session, team_id: int, category: Category,
     cats.add(category)
     draft.locked_categories = ",".join(c.value for c in cats)
     session.add(draft); session.commit()
+
+
+def unlock_category(session: Session, team_id: int, category: Category) -> None:
+    draft = get_draft(session)
+    if draft is None or draft.current_team_id != team_id:
+        raise DraftError("该车队不是当前处理的车队")
+    for c in session.exec(select(Car).where(Car.team_id == team_id,
+                          Car.category == category,
+                          Car.status.in_(ACTIVE_STATUSES))).all():
+        if c.status != CarStatus.LONG:
+            market.release_car(session, c)
+    cats = locked_categories(draft)
+    cats.discard(category)
+    draft.locked_categories = ",".join(c.value for c in cats)
+    session.add(draft); session.commit()
+
+
+def confirm_team(session: Session, team_id: int) -> None:
+    draft = get_draft(session)
+    if draft is None or draft.current_team_id != team_id:
+        raise DraftError("该车队不是当前处理的车队")
+    if locked_categories(draft) != set(Category):
+        raise DraftError("三个类别都锁定后才能确认")
+    locked = locked_team_ids(draft)
+    locked.add(team_id)
+    draft.locked_team_ids = ",".join(str(i) for i in sorted(locked))
+    draft.current_team_id = None
+    draft.locked_categories = ""
+    session.add(draft); session.commit()

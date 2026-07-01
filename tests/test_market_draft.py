@@ -217,3 +217,34 @@ def test_lock_order_long_first(session):
     _enter_top(session)
     with pytest.raises(md.DraftError):
         md.lock_category(session, tf.id, Category.F1, [None, None])
+
+
+def test_unlock_reverts_to_baseline(session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    free = csvc.create_car(session, nickname="法自由", category=Category.GT3, brand="法拉利",
+                           casting="", description="", team_id=None)
+    _enter_top(session)
+    md.lock_category(session, tf.id, Category.GT3, [lg.id, free.id])
+    md.unlock_category(session, tf.id, Category.GT3)
+    session.expire_all()
+    assert session.get(Car, free.id).team_id is None
+    assert session.get(Car, lg.id).status == CarStatus.LONG
+    assert Category.GT3 not in md.locked_categories(md.get_draft(session))
+
+
+def test_confirm_requires_all_three_locked(session):
+    import pytest
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    _enter_top(session)
+    with pytest.raises(md.DraftError):
+        md.confirm_team(session, tf.id)
+    for cat in Category:
+        md.lock_category(session, tf.id, cat, [None, None])
+    md.confirm_team(session, tf.id)
+    session.expire_all()
+    d = md.get_draft(session)
+    assert tf.id in md.locked_team_ids(d) and d.current_team_id is None

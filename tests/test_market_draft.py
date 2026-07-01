@@ -331,3 +331,31 @@ def test_routes_open_enter_lock_confirm(engine, session):
     d = md.get_draft(session)
     assert tf.id in md.locked_team_ids(d) and d.current_team_id is None
     assert _client.post("/market/reset", follow_redirects=False).status_code in (302, 303)
+
+
+def test_lock_nonlong_can_disband_even_with_affordable_pool(session):
+    """回归:无长期车的类别永远可锁成 0(整类别不参赛),即使池中有买得起的车。"""
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    # 该队 F1 无车(无长期);池中有 1 辆买得起的法拉利 F1 自由车
+    csvc.create_car(session, nickname="法自由F1", category=Category.F1, brand="法拉利",
+                    casting="", description="", team_id=None)
+    _enter_top(session)
+    # F1 无长期车 → 允许直接锁成 0(两空),尽管池里有可签车
+    md.lock_category(session, tf.id, Category.F1, [None, None])
+    assert Category.F1 in md.locked_categories(md.get_draft(session))
+    assert tsvc.active_count(session, tf.id, Category.F1, None) == 0
+
+
+def test_recommendation_nonlong_collapses_when_cannot_fill_two(session):
+    """回归:无长期车类别只有 1 辆可签车时,补强建议退化为空(不给非法的 1 车阵容)。"""
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    only = csvc.create_car(session, nickname="唯一法F1", category=Category.F1, brand="法拉利",
+                           casting="", description="", team_id=None)
+    _enter_top(session)
+    rec = md.category_recommendation(session, tf.id, Category.F1)
+    assert rec["strengthen"] == []            # 凑不满 2 → 建议不参赛,而非非法的 [only]
+    # 且该建议可直接锁定(不会被校验拒绝)
+    md.lock_category(session, tf.id, Category.F1, (rec["strengthen"] + [None, None])[:2])
+    assert Category.F1 in md.locked_categories(md.get_draft(session))

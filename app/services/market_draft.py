@@ -198,6 +198,9 @@ def category_recommendation(session: Session, team_id: int, category: Category) 
         if row["salary"] <= hr:
             strengthen.append(row["car"].id)
             hr -= row["salary"]
+    # 无长期车的类别只能 0 或 2:凑不满 2 的补强是非法的锁定态,退化为「不参赛」(空)。
+    if not longs and len(strengthen) < MAX_CARS_PER_CATEGORY:
+        strengthen = []
     return {"keep": keep, "can_disband": len(longs) == 0, "strengthen": strengthen}
 
 
@@ -246,16 +249,24 @@ def lock_category(session: Session, team_id: int, category: Category,
             raise DraftError("所选车不在候选池中(品牌/归属/退役不合法)")
 
     # ④ 数量 + 逃生阀
+    #   - 满 2:恒合法。
+    #   - 含长期车:长期钉死(n≥1)。须补满到 2,除非池中已无「合法+买得起」的车
+    #     (逃生阀)才允许停在 1(长期车单撑)。
+    #   - 无长期车:只能 0 或 2。0(整类别不参赛)恒合法;1 非法。
     has_long = bool(long_ids)
-    if len(chosen_ids) == MAX_CARS_PER_CATEGORY:
+    n = len(chosen_ids)
+    if n == MAX_CARS_PER_CATEGORY:
         pass
-    elif len(chosen_ids) <= 1:
+    elif has_long:
         addable = [r for cid2, r in pool.items()
                    if cid2 not in chosen_ids and r["affordable"]]
         if addable:
-            raise DraftError("该类别可补强,不能停在不足 2 个现役")
-        if not has_long and len(chosen_ids) == 1:
+            raise DraftError("含长期车的类别可补强,必须补满到 2 个现役")
+        # 否则允许停在 1(长期车单撑)
+    else:
+        if n == 1:
             raise DraftError("无长期车的类别必须是 0 或 2 个现役")
+        # n == 0:整类别不参赛,恒合法
 
     # ⑤ 预算
     other_salary = 0

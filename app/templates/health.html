@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>健康自检</h2>
+  {% set o = overview %}
+  <p><small>车 {{ o.cars }} · 队 {{ o.teams }} · 现役 {{ o.active }} · 退役 {{ o.retired }} · 未签约 {{ o.unsigned }} · 赛季 {{ o.seasons }}</small></p>
+  {% if checks | selectattr('ok', 'equalto', false) | list | length == 0 %}
+    <p>✅ 一切正常,未发现问题。</p>
+  {% endif %}
+</div>
+
+{% for c in checks %}
+<div class="card">
+  <strong>{% if c.ok %}✅{% elif c.severity == 'error' %}❌{% else %}⚠️{% endif %} {{ c.title }}</strong>
+  {% if not c.ok %}
+  <ul style="margin:6px 0">
+    {% for it in c.items %}
+    <li><a href="{{ it.href }}">{{ it.label }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

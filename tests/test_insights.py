@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
 from sqlmodel import select
 from app.enums import Category, TeamType, CarStatus, ProLevel, RaceFormat, RaceStatus
 from app.models import (Car, Team, Season, Race, RaceRound, Group, Heat, HeatResult,
@@ -144,3 +145,19 @@ from app.main import app
 def test_insights_routes_registered():
     paths = {r.path for r in app.routes}
     assert {"/insights", "/lanes", "/health"} <= paths
+
+
+_client = TestClient(app)
+
+
+def test_routes_render(engine, session):
+    sid = ssvc.start_season(session, name="S1").id
+    t = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="q")
+    csvc.create_car(session, nickname="a", category=Category.GT3, brand="X",
+                    casting="", description="", team_id=t.id, signed_status=CarStatus.LONG)
+    assert _client.get("/insights").status_code == 200
+    r = _client.get("/lanes")
+    assert r.status_code == 200 and "平均名次" in r.text
+    assert _client.get("/lanes", params={"category": "GT3", "season_id": sid}).status_code == 200
+    h = _client.get("/health")
+    assert h.status_code == 200 and "状态一致性" in h.text

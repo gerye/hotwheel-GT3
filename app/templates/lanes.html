@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>赛道公平性</h2>
+  <form method="get" action="/lanes" style="margin-bottom:8px">
+    <select name="season_id" onchange="this.form.submit()" style="width:auto">
+      <option value="">全部赛季</option>
+      {% for s in seasons %}
+      <option value="{{ s.id }}" {{ 'selected' if sel_season == s.id else '' }}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="category" onchange="this.form.submit()" style="width:auto">
+      <option value="">全部类别</option>
+      {% for c in categories %}
+      <option value="{{ c.value }}" {{ 'selected' if sel_category == c.value else '' }}>{{ c.value }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% set v = stats.verdict %}
+  {% if not v.enough_sample %}
+    <p><small>样本不足(各道需 ≥ 阈值场次才判定偏差),以下仅供参考。</small></p>
+  {% elif v.biased %}
+    <p class="error">疑似偏差:最快 {{ v.fastest_lane }} 道 vs 最慢 {{ v.slowest_lane }} 道,平均名次差 {{ '%.2f'|format(v.spread) }}。</p>
+  {% else %}
+    <p>未见明显偏差(最快/最慢道平均名次差 {{ '%.2f'|format(v.spread) }})。</p>
+  {% endif %}
+
+  <table style="width:100%;border-collapse:collapse;font-size:14px">
+    <tr style="border-bottom:1px solid #ddd;text-align:center">
+      <th style="text-align:left">车道</th><th>场次</th><th>平均名次</th><th>脱轨率</th><th>拿第一</th>
+    </tr>
+    {% for l in stats.lanes %}
+    <tr style="border-bottom:1px solid #f0f0f0;text-align:center">
+      <td style="text-align:left">{{ l.lane }} 道{% if l.low_sample %} <small>(样本不足)</small>{% endif %}</td>
+      <td>{{ l.n }}</td>
+      <td>{% if l.avg_rank is none %}—{% else %}{{ '%.2f'|format(l.avg_rank) }}{% endif %}</td>
+      <td>{{ '%.0f%%'|format(l.dnf_rate * 100) }}</td>
+      <td>{{ '%.0f%%'|format(l.win_rate * 100) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p><small>共 {{ stats.total_results }} 条完赛记录纳入统计。平均名次越小越快;脱轨率高=该道爱把车甩飞。</small></p>
+</div>
+{% endblock %}

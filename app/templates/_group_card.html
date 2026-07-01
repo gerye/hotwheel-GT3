@@ -1,7 +1,7 @@
 <div class="card">
   <h3>{{ g.group.label }} 组</h3>
   {% if g.team_a or g.team_b %}
-  <p><strong>{{ g.team_a or "?" }}</strong> vs <strong>{{ g.team_b or "?" }}</strong></p>
+  <p><strong>{{ g.team_a or "?" }}</strong> vs <strong>{{ g.team_b or "轮空" }}</strong></p>
   {% endif %}
   {% if g.member_cars %}
   <div style="display:flex;gap:12px;overflow-x:auto;padding:8px 0;margin-bottom:4px">

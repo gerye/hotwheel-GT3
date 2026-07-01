@@ -34,7 +34,7 @@ def test_team_winner_rejects_non_two_team_totals():
 from app.enums import Category, ProLevel, RaceFormat, TeamType
 from app.services import tournament as T, seasons as ssvc, cars as csvc, teams as tsvc
 from sqlmodel import select
-from app.models import Group, GroupMember
+from app.models import Group, GroupMember, RaceRound
 
 
 def _team_with_cars(session, brand, n):
@@ -82,6 +82,51 @@ def test_team_group_settle_picks_winner_team(session):
         T.record_heat(session, h.id, ranks={c: i + 1 for i, c in enumerate(ordered)})
     winner = T.settle_team_group(session, grp.id)
     assert winner.winner_team_id == t1.id
+
+
+def _play_to_finish(session, race_id):
+    """随机录完每场并推进,直到 finished;返回最终 AdvanceResult。"""
+    for _ in range(200):
+        rnd = session.exec(select(RaceRound).where(RaceRound.race_id == race_id)
+                           .order_by(RaceRound.number.desc())).first()
+        groups = session.exec(select(Group).where(Group.round_id == rnd.id)).all()
+        for g in groups:
+            members = [m.car_id for m in session.exec(select(GroupMember)
+                       .where(GroupMember.group_id == g.id)).all()]
+            for h in session.exec(select(Heat).where(Heat.group_id == g.id)).all():
+                if not h.recorded:
+                    T.record_heat(session, h.id,
+                                  ranks={c: i + 1 for i, c in enumerate(members)})
+        res = T.advance_round(session, race_id, seed=7)
+        if res.kind == "finished":
+            return res
+        if res.kind == "needs_decision":
+            gid = res.pending_group_ids[0]
+            adv = T.settle_group(session, gid)
+            need = max(0, 2 - len(adv.guaranteed or []))
+            T.resolve_tie(session, gid, winner_car_ids=(adv.tie_between or [])[:need])
+    raise AssertionError("200 轮未收敛")
+
+
+def test_odd_team_bracket_finishes_with_bye(session):
+    """回归:非 2 的幂车队数(6→3→2)靠轮空(bye)推进,不再崩溃。"""
+    ssvc.start_season(session, name="2026 S1")
+    teams = []
+    for b in ["法拉利", "保时捷", "奥迪", "宝马", "迈凯伦", "阿斯顿"]:
+        t, _ = _team_with_cars(session, b, 2)
+        teams.append(t.id)
+    race = T.create_team_race(session, category=Category.GT3,
+                              pro_level=ProLevel.PRO, team_ids=teams, seed=3)
+    # 6 队 → 3 对(首轮均衡)→ 3 队 → 1 对 + 1 轮空 → 2 队决赛
+    res = _play_to_finish(session, race.id)
+    assert res.kind == "finished"
+    assert len(res.ranking) >= 1
+    # 过程中出现过轮空组(team_b 为空但 team_a 有值)
+    rounds = session.exec(select(RaceRound).where(RaceRound.race_id == race.id)).all()
+    all_groups = session.exec(select(Group).where(
+        Group.round_id.in_([r.id for r in rounds]))).all()
+    byes = [g for g in all_groups if g.team_b_id is None and g.team_a_id is not None]
+    assert byes, "3 队轮次应产生一个轮空组"
 
 
 def test_replay_adds_four_heats(session):

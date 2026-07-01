@@ -255,6 +255,9 @@ def advance_round(session: Session, race_id: int,
     if race.format == RaceFormat.TEAM:
         winners: list[int] = []
         for g in groups:
+            if g.team_b_id is None:             # 轮空组:team_a 直接晋级
+                winners.append(g.team_a_id)
+                continue
             res = settle_team_group(session, g.id)
             if res.winner_team_id is None:      # 车队总分并列 → 加赛
                 extend_team_group_with_replay(session, g.id)
@@ -319,8 +322,11 @@ def _build_team_round(session: Session, race: Race, *, number: int,
     session.add(rnd); session.commit(); session.refresh(rnd)
     pool = list(team_ids)
     random.Random(seed).shuffle(pool)
+    # 奇数队伍:落单的一队轮空(bye),不比赛直接晋级
+    bye = pool.pop() if len(pool) % 2 == 1 else None
     pairs = [pool[i:i + 2] for i in range(0, len(pool), 2)]
-    for idx, (ta, tb) in enumerate(pairs):
+    idx = 0
+    for ta, tb in pairs:
         group = Group(round_id=rnd.id, label=chr(ord("A") + idx),
                       team_a_id=ta, team_b_id=tb)
         session.add(group); session.commit(); session.refresh(group)
@@ -329,6 +335,15 @@ def _build_team_round(session: Session, race: Race, *, number: int,
             session.add(GroupMember(group_id=group.id, car_id=cid))
         session.commit()
         _build_heats(session, group, members)
+        idx += 1
+    if bye is not None:
+        # 轮空组:只有 team_a、无对手、不建 heat(自动视为已录完并直接晋级)
+        group = Group(round_id=rnd.id, label=chr(ord("A") + idx),
+                      team_a_id=bye, team_b_id=None)
+        session.add(group); session.commit(); session.refresh(group)
+        for cid in _team_cars(session, bye, category):
+            session.add(GroupMember(group_id=group.id, car_id=cid))
+        session.commit()
     return rnd
 
 

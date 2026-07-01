@@ -63,3 +63,19 @@ def test_reset_restores_from_snapshot(session):
     assert c.team_id == ta.id and c.status == CarStatus.SHORT
     d = md.get_draft(session)
     assert d.locked_team_ids == "" and d.current_team_id is None
+
+
+def test_queue_orders_by_headroom_then_points(session):
+    ssvc.start_season(session, name="S1")
+    ta = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="A")
+    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B")
+    a = csvc.create_car(session, nickname="a", category=Category.GT3, brand="X",
+                        casting="", description="", team_id=ta.id, signed_status=CarStatus.LONG)
+    b = csvc.create_car(session, nickname="b", category=Category.GT3, brand="X",
+                        casting="", description="", team_id=tb.id, signed_status=CarStatus.LONG)
+    a.season_mmr = 1400; b.season_mmr = 1600
+    session.add(a); session.add(b); session.commit()
+    md.open_draft(session)
+    q = md.draft_queue(session)
+    assert [row["team"].id for row in q][:2] == [ta.id, tb.id]
+    assert all("headroom" in row and "locked" in row for row in q)

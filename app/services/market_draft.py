@@ -67,3 +67,40 @@ def locked_team_ids(draft: MarketDraft) -> set:
 
 def locked_categories(draft: MarketDraft) -> set:
     return {Category(x) for x in draft.locked_categories.split(",") if x}
+
+
+def _max_active_mmr(session: Session, team_id: int) -> float:
+    rows = session.exec(select(Car).where(Car.team_id == team_id,
+                        Car.status.in_(ACTIVE_STATUSES))).all()
+    return max((c.season_mmr for c in rows), default=float("-inf"))
+
+
+def priority_key(session: Session, draft: MarketDraft, team_id: int, ref_id: int):
+    """排序键:余额高→积分高→最高MMR高→固定随机。取负实现降序。"""
+    hr = market.headroom(session, team_id, ref_id)
+    pts = st.team_season_points(session, team_id, ref_id)
+    mmr = _max_active_mmr(session, team_id)
+    rnd = random.Random("%d-%d" % (draft.tiebreak_seed, team_id)).random()
+    return (-hr, -pts, -mmr, rnd)
+
+
+def draft_queue(session: Session) -> list:
+    draft = get_draft(session)
+    if draft is None:
+        return []
+    ref_id = draft.reference_season_id
+    locked = locked_team_ids(draft)
+    rows = []
+    for t in session.exec(select(Team)).all():
+        rows.append({
+            "team": t,
+            "headroom": market.headroom(session, t.id, ref_id),
+            "points": st.team_season_points(session, t.id, ref_id),
+            "locked": t.id in locked,
+            "is_current": t.id == draft.current_team_id,
+            "_key": priority_key(session, draft, t.id, ref_id),
+        })
+    rows.sort(key=lambda r: (r["locked"], r["_key"]))
+    for r in rows:
+        r.pop("_key")
+    return rows

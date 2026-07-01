@@ -185,6 +185,23 @@ def test_lock_fills_long_category_to_two(session):
     assert Category.GT3 in md.locked_categories(md.get_draft(session))
 
 
+def test_lock_auto_injects_long_when_ui_omits_it(session):
+    """回归:UI 只提交第 2 槽(长期车不在提交里),服务端自动钉入长期车,锁定成功到 2。"""
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    free = csvc.create_car(session, nickname="法自由", category=Category.GT3, brand="法拉利",
+                           casting="", description="", team_id=None)
+    _enter_top(session)
+    # 模拟模板:只传第 2 槽(法自由),长期车 lg 不在 slots 里
+    md.lock_category(session, tf.id, Category.GT3, [free.id, None])
+    session.expire_all()
+    assert session.get(Car, lg.id).status == CarStatus.LONG and session.get(Car, lg.id).team_id == tf.id
+    assert session.get(Car, free.id).team_id == tf.id
+    assert Category.GT3 in md.locked_categories(md.get_draft(session))
+
+
 def test_lock_long_category_may_stop_at_one_when_no_car(session):
     ssvc.start_season(session, name="S1")
     tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
@@ -295,12 +312,22 @@ def test_routes_open_enter_lock_confirm(engine, session):
                     casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
     assert _client.post("/market/open", follow_redirects=False).status_code in (302, 303)
     assert _client.get("/market").status_code == 200
-    assert _client.post("/market/enter", data={"team_id": tf.id},
-                        follow_redirects=False).status_code in (302, 303)
-    for cat in ["GT3", "F1", "公路车"]:
+    _client.post("/market/enter", data={"team_id": tf.id}, follow_redirects=False)
+    # 断言真实结果,而非仅重定向码:err 会被路由塞进 Location 查询串
+    for cat in ["GT3", "F1", "公路车"]:      # GT3(含长期车)先锁
         r = _client.post("/market/lock", data={"team_id": tf.id, "category": cat,
                          "slot1": "", "slot2": ""}, follow_redirects=False)
-        assert r.status_code in (302, 303)
-    assert _client.post("/market/confirm", data={"team_id": tf.id},
-                        follow_redirects=False).status_code in (302, 303)
+        assert "err=" not in r.headers["location"], f"{cat} 锁定失败:{r.headers['location']}"
+    # GT3 含 1 长期车,池中无第二辆法拉利 GT3 → 逃生阀锁在 1(长期车仍在队)
+    session.expire_all()
+    from app.models import Car
+    lg = session.exec(select(Car).where(Car.nickname == "法长")).first()
+    assert lg.team_id == tf.id and lg.status == CarStatus.LONG
+    d = md.get_draft(session)
+    assert md.locked_categories(d) == set(Category)
+    r = _client.post("/market/confirm", data={"team_id": tf.id}, follow_redirects=False)
+    assert "err=" not in r.headers["location"]
+    session.expire_all()
+    d = md.get_draft(session)
+    assert tf.id in md.locked_team_ids(d) and d.current_team_id is None
     assert _client.post("/market/reset", follow_redirects=False).status_code in (302, 303)

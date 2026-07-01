@@ -146,6 +146,8 @@ def category_pool(session: Session, team_id: int, category: Category) -> list:
     """某 (队,类别) 一个自由槽的候选池:自由身 + 未确认他队短期 + 本队该类别现有现役;
     去掉长期车、已确认队的车、退役车;按品牌过滤;标注是否买得起。"""
     draft = get_draft(session)
+    if draft is None:
+        raise DraftError("尚未开盘")
     ref_id = draft.reference_season_id
     locked = locked_team_ids(draft)
     team = session.get(Team, team_id)
@@ -173,6 +175,8 @@ def category_pool(session: Session, team_id: int, category: Category) -> list:
 
 def category_recommendation(session: Session, team_id: int, category: Category) -> dict:
     draft = get_draft(session)
+    if draft is None:
+        raise DraftError("尚未开盘")
     ref_id = draft.reference_season_id
     longs = _long_cars(session, team_id, category)
     long_ids = [c.id for c in longs]
@@ -216,7 +220,6 @@ def lock_category(session: Session, team_id: int, category: Category,
         raise DraftError("该类别已锁定,请先解锁")
     team = session.get(Team, team_id)
     ref_id = draft.reference_season_id
-    chosen_ids = [cid for cid in slot_car_ids if cid]
 
     # ① 顺序:含长期车类别必须先锁
     if not _has_long(session, team_id, category):
@@ -225,9 +228,12 @@ def lock_category(session: Session, team_id: int, category: Category,
             raise DraftError("请先锁定含长期车的类别:"
                              + "、".join(c.value for c in pending))
 
-    long_ids = {c.id for c in _long_cars(session, team_id, category)}
-    if not long_ids.issubset(set(chosen_ids)):
-        raise DraftError("长期车不可移除,必须保留在阵容中")
+    # 长期车服务端自动钉入阵容(UI 无需重复提交,长期不可移除);
+    # 其余槽为手动选择,去重并剔除长期车 id。
+    long_id_list = [c.id for c in _long_cars(session, team_id, category)]
+    long_ids = set(long_id_list)
+    submitted = [cid for cid in slot_car_ids if cid and cid not in long_ids]
+    chosen_ids = long_id_list + submitted
     if len(chosen_ids) > MAX_CARS_PER_CATEGORY:
         raise DraftError("每类别最多 2 个现役")
 

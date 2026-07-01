@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Optional
 from sqlmodel import Session, select
 from app.models import Car, Race, RaceEntry, CarSeasonMMR
 from app.enums import ProLevel, RaceStatus

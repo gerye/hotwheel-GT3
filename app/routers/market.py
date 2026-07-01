@@ -30,12 +30,15 @@ def market_page(request: Request, err: str = "", session: Session = Depends(get_
         cats = []
         locked = md.locked_categories(draft)
         for cat in Category:
+            longs = md._long_cars(session, tid, cat)
             cats.append({
                 "category": cat,
                 "locked": cat in locked,
                 "pool": md.category_pool(session, tid, cat),
                 "rec": md.category_recommendation(session, tid, cat),
-                "has_long": md._has_long(session, tid, cat),
+                "has_long": bool(longs),
+                "longs": longs,
+                "free_slots": md.MAX_CARS_PER_CATEGORY - len(longs),
             })
         current = {"team": team, "cats": cats,
                    "headroom": market.headroom(session, tid, draft.reference_season_id),

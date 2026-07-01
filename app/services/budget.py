@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 from sqlmodel import Session, select
 from app.models import Team, Race
 from app.enums import ProLevel, RaceFormat, RaceStatus

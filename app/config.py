@@ -30,6 +30,10 @@ SALARY_FINALS = 40      # 每次进决赛圈未夺冠
 SALARY_LEGEND = 100     # 名宿费
 LEGEND_TOP_PCT = 0.10   # 历史 MMR 本类别前 10% 为名宿
 
+# 赛道公平性(insights)
+LANE_MIN_SAMPLE = 10      # 某道场次 < 此数 → 样本不足,不纳入偏差判定
+LANE_BIAS_THRESHOLD = 0.5 # 最快/最慢道平均名次差 ≥ 此值 → 提示疑似偏差
+
 
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(exist_ok=True)

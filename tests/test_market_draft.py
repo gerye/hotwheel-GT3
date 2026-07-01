@@ -116,3 +116,48 @@ def test_enter_rejects_when_not_top_or_busy(session):
     md.enter_team(session, top)
     with pytest.raises(md.DraftError):
         md.enter_team(session, other)
+
+
+def test_pool_includes_free_and_other_short_excludes_long(session):
+    ssvc.start_season(session, name="S1")
+    ta = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="A")
+    tb = tsvc.create_team(session, type=TeamType.INDEPENDENT, brand=None, name="B")
+    free = csvc.create_car(session, nickname="自由", category=Category.GT3, brand="X",
+                           casting="", description="", team_id=None)
+    b_short = csvc.create_car(session, nickname="B短", category=Category.GT3, brand="X",
+                              casting="", description="", team_id=tb.id, signed_status=CarStatus.SHORT)
+    b_long = csvc.create_car(session, nickname="B长", category=Category.GT3, brand="X",
+                             casting="", description="", team_id=tb.id, signed_status=CarStatus.LONG)
+    md.open_draft(session)
+    md.enter_team(session, md.draft_queue(session)[0]["team"].id)
+    ids = {row["car"].id for row in md.category_pool(session, ta.id, Category.GT3)}
+    assert free.id in ids and b_short.id in ids
+    assert b_long.id not in ids
+
+
+def test_pool_factory_brand_lock(session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    ok = csvc.create_car(session, nickname="无牌", category=Category.GT3, brand="无",
+                         casting="", description="", team_id=None)
+    bad = csvc.create_car(session, nickname="保时捷车", category=Category.GT3, brand="保时捷",
+                          casting="", description="", team_id=None)
+    md.open_draft(session)
+    md.enter_team(session, tf.id)
+    ids = {row["car"].id for row in md.category_pool(session, tf.id, Category.GT3)}
+    assert ok.id in ids and bad.id not in ids
+
+
+def test_recommendation_shapes(session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    free = csvc.create_car(session, nickname="法自由", category=Category.GT3, brand="法拉利",
+                           casting="", description="", team_id=None)
+    md.open_draft(session)
+    md.enter_team(session, tf.id)
+    rec = md.category_recommendation(session, tf.id, Category.GT3)
+    assert lg.id in rec["keep"]
+    assert rec["can_disband"] is False
+    assert free.id in rec["strengthen"]

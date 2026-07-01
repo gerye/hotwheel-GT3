@@ -6,6 +6,24 @@ from sqlmodel.pool import StaticPool
 from app import db
 
 
+def pytest_addoption(parser):
+    parser.addoption("--runslow", action="store_true", default=False,
+                     help="同时运行标记 slow 的慢速集成测试(如全链路自检)")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: 慢速集成测试;默认跳过,加 --runslow 运行")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--runslow"):
+        return
+    skip = pytest.mark.skip(reason="慢速测试,默认跳过(加 --runslow 运行)")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip)
+
+
 @pytest.fixture()
 def engine():
     eng = create_engine(

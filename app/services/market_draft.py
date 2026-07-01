@@ -195,3 +195,90 @@ def category_recommendation(session: Session, team_id: int, category: Category) 
             strengthen.append(row["car"].id)
             hr -= row["salary"]
     return {"keep": keep, "can_disband": len(longs) == 0, "strengthen": strengthen}
+
+
+def _has_long(session: Session, team_id: int, category: Category) -> bool:
+    return len(_long_cars(session, team_id, category)) > 0
+
+
+def _unlocked_long_categories(session: Session, team_id: int, draft: MarketDraft) -> set:
+    done = locked_categories(draft)
+    return {cat for cat in Category
+            if _has_long(session, team_id, cat) and cat not in done}
+
+
+def lock_category(session: Session, team_id: int, category: Category,
+                  slot_car_ids: list) -> None:
+    draft = get_draft(session)
+    if draft is None or draft.current_team_id != team_id:
+        raise DraftError("该车队不是当前处理的车队")
+    if category in locked_categories(draft):
+        raise DraftError("该类别已锁定,请先解锁")
+    team = session.get(Team, team_id)
+    ref_id = draft.reference_season_id
+    chosen_ids = [cid for cid in slot_car_ids if cid]
+
+    # ① 顺序:含长期车类别必须先锁
+    if not _has_long(session, team_id, category):
+        pending = _unlocked_long_categories(session, team_id, draft)
+        if pending:
+            raise DraftError("请先锁定含长期车的类别:"
+                             + "、".join(c.value for c in pending))
+
+    long_ids = {c.id for c in _long_cars(session, team_id, category)}
+    if not long_ids.issubset(set(chosen_ids)):
+        raise DraftError("长期车不可移除,必须保留在阵容中")
+    if len(chosen_ids) > MAX_CARS_PER_CATEGORY:
+        raise DraftError("每类别最多 2 个现役")
+
+    pool = {row["car"].id: row for row in category_pool(session, team_id, category)}
+    # ② 品牌 + 来源合法:非长期的选中车必须来自候选池
+    for cid in chosen_ids:
+        if cid in long_ids:
+            continue
+        if cid not in pool:
+            raise DraftError("所选车不在候选池中(品牌/归属/退役不合法)")
+
+    # ④ 数量 + 逃生阀
+    has_long = bool(long_ids)
+    if len(chosen_ids) == MAX_CARS_PER_CATEGORY:
+        pass
+    elif len(chosen_ids) <= 1:
+        addable = [r for cid2, r in pool.items()
+                   if cid2 not in chosen_ids and r["affordable"]]
+        if addable:
+            raise DraftError("该类别可补强,不能停在不足 2 个现役")
+        if not has_long and len(chosen_ids) == 1:
+            raise DraftError("无长期车的类别必须是 0 或 2 个现役")
+
+    # ⑤ 预算
+    other_salary = 0
+    for c in session.exec(select(Car).where(Car.team_id == team_id,
+                          Car.status.in_(ACTIVE_STATUSES))).all():
+        if c.category != category:
+            other_salary += sal.compute_salary(session, c, ref_id)
+    chosen_salary = sum(sal.compute_salary(session, session.get(Car, cid), ref_id)
+                        for cid in chosen_ids)
+    budget = market.bud.compute_budget(session, team, ref_id)
+    long_only_salary = sum(sal.compute_salary(session, session.get(Car, cid), ref_id)
+                           for cid in long_ids)
+    over = other_salary + chosen_salary > budget
+    long_only_over = other_salary + long_only_salary > budget
+    if over and not (has_long and chosen_salary == long_only_salary and long_only_over):
+        raise DraftError("超出预算")
+
+    # ---- 应用:释放本类别现有非长期现役,再签入选中的非长期车 ----
+    for c in session.exec(select(Car).where(Car.team_id == team_id,
+                          Car.category == category,
+                          Car.status.in_(ACTIVE_STATUSES))).all():
+        if c.id not in long_ids:
+            market.release_car(session, c)
+    for cid in chosen_ids:
+        if cid in long_ids:
+            continue
+        market.assign_car(session, session.get(Car, cid), team_id, CarStatus.SHORT)
+
+    cats = locked_categories(draft)
+    cats.add(category)
+    draft.locked_categories = ",".join(c.value for c in cats)
+    session.add(draft); session.commit()

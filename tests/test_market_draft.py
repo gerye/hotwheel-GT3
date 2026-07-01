@@ -161,3 +161,59 @@ def test_recommendation_shapes(session):
     assert lg.id in rec["keep"]
     assert rec["can_disband"] is False
     assert free.id in rec["strengthen"]
+
+
+def _enter_top(session):
+    md.open_draft(session)
+    tid = md.draft_queue(session)[0]["team"].id
+    md.enter_team(session, tid)
+    return tid
+
+
+def test_lock_fills_long_category_to_two(session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    free = csvc.create_car(session, nickname="法自由", category=Category.GT3, brand="法拉利",
+                           casting="", description="", team_id=None)
+    _enter_top(session)
+    md.lock_category(session, tf.id, Category.GT3, [lg.id, free.id])
+    session.expire_all()
+    assert session.get(Car, free.id).team_id == tf.id
+    assert session.get(Car, free.id).status == CarStatus.SHORT
+    assert Category.GT3 in md.locked_categories(md.get_draft(session))
+
+
+def test_lock_long_category_may_stop_at_one_when_no_car(session):
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    _enter_top(session)
+    md.lock_category(session, tf.id, Category.GT3, [lg.id, None])
+    assert Category.GT3 in md.locked_categories(md.get_draft(session))
+
+
+def test_lock_rejects_one_active_when_car_available(session):
+    import pytest
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    lg = csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                         casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    csvc.create_car(session, nickname="法自由", category=Category.GT3, brand="法拉利",
+                    casting="", description="", team_id=None)
+    _enter_top(session)
+    with pytest.raises(md.DraftError):
+        md.lock_category(session, tf.id, Category.GT3, [lg.id, None])
+
+
+def test_lock_order_long_first(session):
+    import pytest
+    ssvc.start_season(session, name="S1")
+    tf = tsvc.create_team(session, type=TeamType.FACTORY, brand="法拉利", name=None)
+    csvc.create_car(session, nickname="法长", category=Category.GT3, brand="法拉利",
+                    casting="", description="", team_id=tf.id, signed_status=CarStatus.LONG)
+    _enter_top(session)
+    with pytest.raises(md.DraftError):
+        md.lock_category(session, tf.id, Category.F1, [None, None])

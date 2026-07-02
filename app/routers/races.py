@@ -18,9 +18,10 @@ router = APIRouter()
 def eligible_cars(session: Session, category: Category, *, pro: bool) -> list[Car]:
     stmt = select(Car).where(Car.category == category)
     cars = session.exec(stmt.order_by(Car.nickname)).all()
-    if pro:                                 # 专业赛仅限现役
-        cars = [c for c in cars if c.status.is_active]
-    return cars                             # 表演赛:任何状态都可
+    if pro:                                 # 专业赛仅限现役(长期/短期)
+        return [c for c in cars if c.status.is_active]
+    # 表演赛:未签约/现役都可,但退役车不参加任何比赛
+    return [c for c in cars if c.status != CarStatus.RETIRED]
 
 
 def eligible_teams(session: Session, category: Category) -> list[Team]:

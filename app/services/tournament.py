@@ -6,7 +6,7 @@ from typing import Optional
 from sqlmodel import Session, select
 from app.models import (Race, RaceEntry, RaceRound, Group, GroupMember,
                         Heat, HeatResult, Car, Team, TieBreak)
-from app.enums import Category, ProLevel, RaceFormat, RaceStatus, ACTIVE_STATUSES
+from app.enums import Category, ProLevel, RaceFormat, RaceStatus, CarStatus, ACTIVE_STATUSES
 from app.services import grouping, lineup, seasons as ssvc
 from app.services import mmr as mmr_svc, standings as st_svc
 from app.services import scoring, team_scoring, racestats
@@ -18,11 +18,14 @@ def create_race(session: Session, *, category: Category, pro_level: ProLevel,
     season = ssvc.get_active_season(session)
     if season is None:
         raise ValueError("没有进行中的赛季,请先开启赛季")
-    if pro_level == ProLevel.PRO:
-        for cid in car_ids:
-            car = session.get(Car, cid)
-            if car is not None and not car.status.is_active:
-                raise ValueError("专业赛只能选择现役(长期/短期)赛车")
+    for cid in car_ids:
+        car = session.get(Car, cid)
+        if car is None:
+            continue
+        if car.status == CarStatus.RETIRED:
+            raise ValueError("退役赛车不参加任何比赛")
+        if pro_level == ProLevel.PRO and not car.status.is_active:
+            raise ValueError("专业赛只能选择现役(长期/短期)赛车")
     grouping.group_sizes(len(car_ids))   # 提前校验数量,非法直接抛 GroupingError
     race = Race(season_id=season.id, category=category, pro_level=pro_level,
                 format=format, status=RaceStatus.IN_PROGRESS)

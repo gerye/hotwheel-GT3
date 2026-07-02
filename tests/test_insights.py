@@ -143,7 +143,9 @@ from app.main import app
 
 
 def test_insights_routes_registered():
-    paths = {r.path for r in app.routes}
+    # 用 OpenAPI 路径表判断路由是否注册,兼容新版 Starlette
+    # (include_router 后的路由在 app.routes 里被包成无 .path 的 _IncludedRouter)。
+    paths = set(app.openapi()["paths"].keys())
     assert {"/insights", "/lanes", "/health"} <= paths
 
 
